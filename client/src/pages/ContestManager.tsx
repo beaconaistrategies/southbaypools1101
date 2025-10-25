@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
+import { ArrowLeft } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import StatusBadge from "@/components/StatusBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -15,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function ContestManager() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedSquareToRelease, setSelectedSquareToRelease] = useState<number | null>(null);
   
@@ -126,14 +129,26 @@ export default function ContestManager() {
       <TopNav title="SquareKeeper" />
       
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-3xl font-semibold">{contest.name}</h2>
-            <p className="text-muted-foreground mt-1">
-              {contest.topTeam} vs {contest.leftTeam}
-            </p>
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setLocation("/admin")}
+            className="mb-4"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-semibold">{contest.name}</h2>
+              <p className="text-muted-foreground mt-1">
+                {contest.topTeam} vs {contest.leftTeam}
+              </p>
+            </div>
+            <StatusBadge status={contest.status} />
           </div>
-          <StatusBadge status={contest.status} />
         </div>
 
         <Tabs defaultValue="board" className="space-y-6">

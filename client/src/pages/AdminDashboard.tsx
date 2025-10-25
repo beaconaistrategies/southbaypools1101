@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import TopNav from "@/components/TopNav";
 import ContestCard from "@/components/ContestCard";
 import EmptyState from "@/components/EmptyState";
 import { Grid3x3 } from "lucide-react";
 
 export default function AdminDashboard() {
+  const [, setLocation] = useLocation();
+  
   //todo: remove mock functionality
   const [contests] = useState([
     {
@@ -30,15 +33,15 @@ export default function AdminDashboard() {
   ]);
 
   const handleNewContest = () => {
-    console.log("New contest clicked");
+    setLocation("/admin/contest/new");
   };
 
   const handleManage = (id: string) => {
-    console.log("Manage contest:", id);
+    setLocation(`/admin/contest/${id}`);
   };
 
   const handleViewPublic = (id: string) => {
-    console.log("View public board:", id);
+    setLocation(`/board/${id}`);
   };
 
   return (

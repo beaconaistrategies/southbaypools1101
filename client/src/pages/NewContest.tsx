@@ -1,9 +1,11 @@
+import { useLocation } from "wouter";
 import TopNav from "@/components/TopNav";
 import ContestForm from "@/components/ContestForm";
 import { useToast } from "@/hooks/use-toast";
 
 export default function NewContest() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = (data: any) => {
     console.log("Contest created:", data);
@@ -11,10 +13,11 @@ export default function NewContest() {
       title: "Saved",
       description: "Contest has been created successfully.",
     });
+    setTimeout(() => setLocation("/admin"), 500);
   };
 
   const handleCancel = () => {
-    console.log("Form cancelled");
+    setLocation("/admin");
   };
 
   return (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function LoginPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -30,6 +32,8 @@ export default function LoginPage() {
         title: "Signed in",
         description: "Welcome back to SquareKeeper",
       });
+      // Navigate to admin dashboard
+      setLocation("/admin");
     }
   };
 
