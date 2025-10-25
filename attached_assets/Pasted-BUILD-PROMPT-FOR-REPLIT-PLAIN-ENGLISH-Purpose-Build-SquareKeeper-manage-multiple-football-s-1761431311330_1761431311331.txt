@@ -1,0 +1,119 @@
+BUILD PROMPT FOR REPLIT (PLAIN ENGLISH)
+
+Purpose:
+- Build "SquareKeeper": manage multiple football squares pools with an admin backend and a simple public board for entrants.
+
+What the user can do (MVP):
+1) Admin: Create and manage multiple contests at once (each contest has a 10x10 board numbered 1–100, quarter info, team labels, and editable cells). Set how many header rows/columns are marked red (1–4 each).
+2) Entrant: Click any available square, enter name, email, and entry name, and confirm. The chosen square is instantly grayed out/marked unavailable on the master board.
+3) Admin: Edit or override square assignments, lock/unlock a contest, and optionally randomize or edit the 0–9 axis numbers. Admin can also mark red rows/columns per contest.
+
+Pages & Navigation:
+- Admin Dashboard: appears after admin signs in. Shows a list of contests with status (Open/Locked), quick stats (# taken / # available), and buttons: "New Contest", "Manage".
+- New/Edit Contest: fields for contest details (name, event date, notes), team labels (Top Team, Left Team), quarter labels (Q1–Q4), axis numbers (0–9 for top and left; can randomize or type), red header settings (Red Rows: 1–4, Red Columns: 1–4; pick which rows/cols are red), and a toggle for "Open for Picks". Buttons: Save, Cancel.
+- Contest Manager (Admin View): shows the 10x10 board (cells 1–100) with colors: gray=taken, white=available, red headers as chosen. Sidebar shows "Squares" list with filters (All/Available/Taken). Actions on a selected square: Assign/Edit (name, email, entry name), Release square, Mark Paid (optional), Notes. Top actions: Lock Contest, Unlock Contest, Shuffle Axis Numbers, Save Changes.
+- Public Contest Board (Entrant View): shows contest name, top/left team labels, the 10x10 board, legend, and a simple form modal that appears when an available square is clicked (Name*, Email*, Entry Name*). Buttons: Confirm, Cancel. After confirming, the square grays out for everyone.
+- Winners & Quarters (optional display on both views): small panel with Q1–Q4 text fields for winner square numbers (editable by admin only).
+
+Data to remember:
+- Contest {
+    id, name, eventDate, status (open|locked),
+    topTeam, leftTeam,
+    topAxisNumbers[10], leftAxisNumbers[10],  // digits 0–9 in some order
+    redRowsCount (1–4), redColsCount (1–4),
+    redRows[] (indices 0–9), redCols[] (indices 0–9),
+    notes
+  }
+- Square {
+    contestId, index (1–100), row (0–9), col (0–9),
+    status (available|taken),
+    holderName, holderEmail, entryName,
+    reservedAt
+  }
+- Quarters {
+    contestId,
+    q1WinnerSquare (1–100 | empty),
+    q2WinnerSquare,
+    q3WinnerSquare,
+    q4WinnerSquare
+  }
+- Required fields:
+  - For Admin creating a contest: name, eventDate, topTeam, leftTeam, redRowsCount, redColsCount.
+  - For Entrant taking a square: holderName, holderEmail, entryName.
+- Start with example records so the app looks real on first run.
+
+Rules & Limits:
+- Exactly 10x10 = 100 squares per contest (indexed 1–100). Cell numbers are visible on the board.
+- Red header settings: Admin can choose between 1 and 4 red rows and 1 and 4 red columns for each contest, and pick which specific rows/columns are red. Red highlighting is visible on the board headers only.
+- When an entrant confirms a square, change it to "taken" immediately and gray it out for everyone. Show the entrant their chosen square number.
+- Prevent empty required fields; show friendly inline errors.
+- Email must look like a valid email address.
+- One click = one reservation. (Admin can later edit or release it.)
+- Admin can lock a contest to stop new picks.
+- Confirmation before deleting a contest or releasing a taken square.
+- Max 200 contests total; each contest capped at 100 squares.
+
+Safety & Access:
+- Admin-only backend behind simple sign-in (email + password).
+- Public entrants do not need accounts; they only enter name, email, and entry name to claim a square.
+- Keep admin pages hidden from non-signed-in users. Public only sees the Contest Board page(s) that are Open.
+
+Look & Feel:
+- Clean, modern, readable layout.
+- Top bar with app name on the left and the primary action on the right (e.g., "New Contest" on Admin Dashboard).
+- Clear labels and helper text on forms (e.g., “Entry name appears on the board.”).
+- Board cells show: small cell number, and if taken, show entry name (truncated) with a tooltip on hover for full details.
+
+Sample Text & Labels:
+- App name: "SquareKeeper"
+- Admin Dashboard primary button: "New Contest"
+- Public main button (modal submit): "Confirm My Square"
+- Empty state (Admin contests): "No contests yet — create your first one."
+- Empty state (Public board all taken): "All squares are taken."
+- Success toast (save): "Saved."
+- Success toast (claim): "Square reserved."
+- Error message: "Please fill required fields."
+
+Success Checks (manual test):
+- I can sign in as Admin, create two contests, and see them both on the Admin Dashboard.
+- I can open one contest’s Public Board, click an available square, submit the form, and see the square immediately gray out and show my entry name.
+- On refresh, the reserved square is still taken.
+- I can edit a square as Admin, or release it (with confirmation) and see it become available again.
+- I can set red rows and columns (1–4 each) on a contest and see the correct header cells highlighted red.
+- Locking a contest prevents new picks on the Public Board.
+
+Starter Content (seed data):
+- Contests:
+  1) "Week 8: SF vs DAL" (eventDate: Oct 27, 2025), topTeam: "San Francisco", leftTeam: "Dallas", status: open, redRowsCount: 2 (rows 1,3), redColsCount: 2 (cols 0,4). Randomized axis numbers provided.
+  2) "Thanksgiving Classic: DET vs CHI" (eventDate: Nov 27, 2025), topTeam: "Detroit", leftTeam: "Chicago", status: locked, redRowsCount: 1 (row 2), redColsCount: 3 (cols 1,2,5).
+- Squares (Week 8) pre-filled examples:
+  - Square #7 (row 0, col 6): holderName "Alex Kim", email "alex@example.com", entryName "AK7", taken.
+  - Square #50 (row 4, col 9): holderName "Sam Patel", email "sam@example.com", entryName "Sam P", taken.
+  - Square #91 (row 9, col 0): holderName "Jordan R", email "jordan@example.com", entryName "JR91", taken.
+- Quarters fields exist for each contest but start empty.
+
+Run & Save in Replit:
+- The app must start when I press **Run** in Replit and open in the preview.
+- Data must persist so that refresh keeps contests and square assignments.
+- Include a short README explaining:
+  - How to sign in as Admin (seed admin credentials).
+  - How to create a contest and set red rows/columns.
+  - How entrants claim a square on the Public Board.
+  - How to lock/unlock a contest and edit/release squares.
+
+Stretch Ideas (nice to have later):
+- Auto-generated public share link per contest.
+- Optional payment status toggle and simple totals report.
+- Limit max squares per email (admin setting).
+- Export entries as CSV.
+- Draw random axis numbers with a seed and log the draw for transparency.
+- Simple email notifications (confirmation to entrant, daily summary to admin).
+
+Notes for the Builder:
+- Work screen-by-screen.
+- Keep the “red rows/columns” settings per-contest and visibly reflected on the board headers.
+- When a square is clicked:
+  - If Available → open modal form (Name*, Email*, Entry Name*) → Confirm → gray out instantly.
+  - If Taken → show a tooltip with entry details (entry name, name, email partially masked).
+- If something is unclear, choose the simplest path that matches the goal above.
+- Keep wording and buttons exactly as written above.
