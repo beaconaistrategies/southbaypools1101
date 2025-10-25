@@ -107,7 +107,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="topTeam">
-                Top Team <span className="text-destructive">*</span>
+                Team 1 (Column Header) <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="topTeam"
@@ -121,7 +121,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
             <div className="space-y-2">
               <Label htmlFor="leftTeam">
-                Left Team <span className="text-destructive">*</span>
+                Team 2 (Row Header) <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="leftTeam"
@@ -238,82 +238,24 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       <Card className="p-6">
         <h3 className="text-lg font-semibold mb-4">Red Headers</h3>
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="redRowsCount">Red Rows (1-4)</Label>
-              <Input
-                id="redRowsCount"
-                type="number"
-                min="1"
-                max="4"
-                value={redRowsCount}
-                onChange={(e) => setRedRowsCount(parseInt(e.target.value) || 1)}
-                data-testid="input-red-rows-count"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="redColsCount">Red Columns (1-4)</Label>
-              <Input
-                id="redColsCount"
-                type="number"
-                min="1"
-                max="4"
-                value={redColsCount}
-                onChange={(e) => setRedColsCount(parseInt(e.target.value) || 1)}
-                data-testid="input-red-cols-count"
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label>Select Red Rows (indices 0-9)</Label>
-            <div className="grid grid-cols-10 gap-2">
-              {Array.from({ length: 10 }).map((_, idx) => (
-                <Button
-                  key={idx}
-                  type="button"
-                  variant={redRows.includes(idx) ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    if (redRows.includes(idx)) {
-                      setRedRows(redRows.filter(r => r !== idx));
-                    } else if (redRows.length < redRowsCount) {
-                      setRedRows([...redRows, idx]);
-                    }
-                  }}
-                  className="font-mono"
-                  data-testid={`button-red-row-${idx}`}
-                >
-                  {idx}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Select Red Columns (indices 0-9)</Label>
-            <div className="grid grid-cols-10 gap-2">
-              {Array.from({ length: 10 }).map((_, idx) => (
-                <Button
-                  key={idx}
-                  type="button"
-                  variant={redCols.includes(idx) ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    if (redCols.includes(idx)) {
-                      setRedCols(redCols.filter(c => c !== idx));
-                    } else if (redCols.length < redColsCount) {
-                      setRedCols([...redCols, idx]);
-                    }
-                  }}
-                  className="font-mono"
-                  data-testid={`button-red-col-${idx}`}
-                >
-                  {idx}
-                </Button>
-              ))}
-            </div>
+            <Label htmlFor="redRowsCount">Number of Red Header Rows (1-6)</Label>
+            <Input
+              id="redRowsCount"
+              type="number"
+              min="1"
+              max="6"
+              value={redRowsCount}
+              onChange={(e) => {
+                const count = parseInt(e.target.value) || 1;
+                setRedRowsCount(count);
+                setRedRows(Array.from({ length: count }, (_, i) => i));
+              }}
+              data-testid="input-red-rows-count"
+            />
+            <p className="text-sm text-muted-foreground">
+              Selects rows 1-{redRowsCount} as red headers
+            </p>
           </div>
         </div>
       </Card>

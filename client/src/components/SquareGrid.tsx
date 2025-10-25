@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Square {
@@ -43,6 +43,14 @@ export default function SquareGrid({
   const isRedHeader = (type: 'row' | 'col', index: number) => {
     return type === 'row' ? redRows.includes(index) : redCols.includes(index);
   };
+
+  const isRandomized = (numbers: number[]) => {
+    const defaultOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    return !numbers.every((num, idx) => num === defaultOrder[idx]);
+  };
+
+  const topRandomized = isRandomized(topAxisNumbers);
+  const leftRandomized = isRandomized(leftAxisNumbers);
 
   const handleSquareClick = (square: Square) => {
     if (readOnly || square.status === "disabled") return;
@@ -120,43 +128,50 @@ export default function SquareGrid({
           </div>
           
           {/* Top axis numbers */}
-          {topAxisNumbers.map((num, idx) => (
-            <div 
-              key={`top-${idx}`}
-              className={`border border-border flex items-center justify-center min-h-[50px] ${
-                isRedHeader('col', idx) ? 'bg-destructive text-destructive-foreground' : 'bg-card'
-              }`}
-              data-testid={`header-top-${idx}`}
-            >
-              <span className="text-sm font-mono font-semibold">{num}</span>
-            </div>
-          ))}
+          {topAxisNumbers.map((num, idx) => {
+            const isRed = isRedHeader('col', idx);
+            const showNumber = !isRed || topRandomized;
+            return (
+              <div 
+                key={`top-${idx}`}
+                className={`border border-border flex items-center justify-center min-h-[50px] ${
+                  isRed ? 'bg-destructive text-destructive-foreground' : 'bg-card'
+                }`}
+                data-testid={`header-top-${idx}`}
+              >
+                {showNumber && <span className="text-sm font-mono font-semibold">{num}</span>}
+              </div>
+            );
+          })}
           
           {/* Grid rows */}
-          {Array.from({ length: 10 }).map((_, rowIdx) => (
-            <>
-              {/* Left axis number */}
-              <div 
-                key={`left-${rowIdx}`}
-                className={`border border-border flex items-center justify-center min-h-[50px] ${
-                  isRedHeader('row', rowIdx) ? 'bg-destructive text-destructive-foreground' : 'bg-card'
-                }`}
-                data-testid={`header-left-${rowIdx}`}
-              >
-                <span className="text-sm font-mono font-semibold">{leftAxisNumbers[rowIdx]}</span>
-              </div>
+          {Array.from({ length: 10 }).map((_, rowIdx) => {
+            const isRed = isRedHeader('row', rowIdx);
+            const showNumber = !isRed || leftRandomized;
+            return (
+              <Fragment key={`row-${rowIdx}`}>
+                {/* Left axis number */}
+                <div 
+                  className={`border border-border flex items-center justify-center min-h-[50px] ${
+                    isRed ? 'bg-destructive text-destructive-foreground' : 'bg-card'
+                  }`}
+                  data-testid={`header-left-${rowIdx}`}
+                >
+                  {showNumber && <span className="text-sm font-mono font-semibold">{leftAxisNumbers[rowIdx]}</span>}
+                </div>
               
-              {/* Data squares */}
-              {Array.from({ length: 10 }).map((_, colIdx) => {
-                const square = getSquare(rowIdx, colIdx);
-                return square ? (
-                  <div key={`square-${rowIdx}-${colIdx}`}>
-                    {renderSquareContent(square)}
-                  </div>
-                ) : null;
-              })}
-            </>
-          ))}
+                {/* Data squares */}
+                {Array.from({ length: 10 }).map((_, colIdx) => {
+                  const square = getSquare(rowIdx, colIdx);
+                  return square ? (
+                    <div key={`square-${rowIdx}-${colIdx}`}>
+                      {renderSquareContent(square)}
+                    </div>
+                  ) : null;
+                })}
+              </Fragment>
+            );
+          })}
         </div>
         
         {/* Left team label (rotated) */}
