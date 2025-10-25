@@ -1,36 +1,30 @@
-import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import ContestCard from "@/components/ContestCard";
 import EmptyState from "@/components/EmptyState";
 import { Grid3x3 } from "lucide-react";
+import type { Contest } from "@shared/schema";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   
-  //todo: remove mock functionality
-  const [contests] = useState([
-    {
-      id: "1",
-      name: "Week 8: SF vs DAL",
-      eventDate: new Date("2025-10-27"),
-      status: "open" as const,
-      topTeam: "San Francisco",
-      leftTeam: "Dallas",
-      takenSquares: 37,
-      totalSquares: 100,
+  const { data: contests = [], isLoading } = useQuery<Contest[]>({
+    queryKey: ["/api/contests"],
+  });
+
+  const { data: allSquares = {} } = useQuery<Record<string, any[]>>({
+    queryKey: ["/api/contests/squares"],
+    queryFn: async () => {
+      const squaresByContest: Record<string, any[]> = {};
+      for (const contest of contests) {
+        const response = await fetch(`/api/contests/${contest.id}/squares`);
+        squaresByContest[contest.id] = await response.json();
+      }
+      return squaresByContest;
     },
-    {
-      id: "2",
-      name: "Thanksgiving Classic: DET vs CHI",
-      eventDate: new Date("2025-11-27"),
-      status: "locked" as const,
-      topTeam: "Detroit",
-      leftTeam: "Chicago",
-      takenSquares: 100,
-      totalSquares: 100,
-    },
-  ]);
+    enabled: contests.length > 0,
+  });
 
   const handleNewContest = () => {
     setLocation("/admin/contest/new");
@@ -61,7 +55,11 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-        {contests.length === 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">Loading contests...</p>
+          </div>
+        ) : contests.length === 0 ? (
           <EmptyState
             icon={Grid3x3}
             title="No contests yet — create your first one."
@@ -71,14 +69,25 @@ export default function AdminDashboard() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contests.map((contest) => (
-              <ContestCard
-                key={contest.id}
-                {...contest}
-                onManage={handleManage}
-                onViewPublic={handleViewPublic}
-              />
-            ))}
+            {contests.map((contest) => {
+              const squares = allSquares[contest.id] || [];
+              const takenSquares = squares.filter((s: any) => s.status === "taken").length;
+              return (
+                <ContestCard
+                  key={contest.id}
+                  id={contest.id}
+                  name={contest.name}
+                  eventDate={new Date(contest.eventDate)}
+                  status={contest.status as "open" | "locked"}
+                  topTeam={contest.topTeam}
+                  leftTeam={contest.leftTeam}
+                  takenSquares={takenSquares}
+                  totalSquares={100}
+                  onManage={handleManage}
+                  onViewPublic={handleViewPublic}
+                />
+              );
+            })}
           </div>
         )}
       </main>
