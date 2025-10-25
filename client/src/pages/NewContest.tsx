@@ -1,19 +1,37 @@
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import ContestForm from "@/components/ContestForm";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export default function NewContest() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  const createContestMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("/api/contests", "POST", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
+      toast({
+        title: "Saved",
+        description: "Contest has been created successfully.",
+      });
+      setTimeout(() => setLocation("/admin"), 500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create contest",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: any) => {
-    console.log("Contest created:", data);
-    toast({
-      title: "Saved",
-      description: "Contest has been created successfully.",
-    });
-    setTimeout(() => setLocation("/admin"), 500);
+    createContestMutation.mutate(data);
   };
 
   const handleCancel = () => {
