@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
 import { ArrowLeft } from "lucide-react";
@@ -14,60 +15,74 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Shuffle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Contest, Square } from "@shared/schema";
 
 export default function ContestManager() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const params = useParams();
+  const contestId = params.id || "1";
+  
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedSquareToRelease, setSelectedSquareToRelease] = useState<number | null>(null);
-  
-  //todo: remove mock functionality
-  const [contest, setContest] = useState({
-    id: "1",
-    name: "Week 8: SF vs DAL",
-    topTeam: "San Francisco",
-    leftTeam: "Dallas",
-    status: "open" as "open" | "locked",
-    topAxisNumbers: [3, 7, 0, 4, 8, 1, 5, 9, 2, 6],
-    leftAxisNumbers: [1, 5, 9, 3, 7, 2, 6, 0, 4, 8],
-    redRows: [1, 3],
-    redCols: [0, 4],
-  });
-
-  const [squares, setSquares] = useState(
-    Array.from({ length: 100 }, (_, i) => ({
-      index: i + 1,
-      row: Math.floor(i / 10),
-      col: i % 10,
-      status: i === 6 || i === 49 || i === 90 ? "taken" as const :
-              i === 15 || i === 16 ? "disabled" as const :
-              "available" as const,
-      entryName: i === 6 ? "AK7" : i === 49 ? "Sam P" : i === 90 ? "JR91" : undefined,
-      holderName: i === 6 ? "Alex Kim" : i === 49 ? "Sam Patel" : i === 90 ? "Jordan R" : undefined,
-      holderEmail: i === 6 ? "alex@example.com" : i === 49 ? "sam@example.com" : i === 90 ? "jordan@example.com" : undefined,
-    }))
-  );
-
-  const [winners, setWinners] = useState({
-    q1: "23",
-    q2: "",
-    q3: "67",
-    q4: ""
-  });
-
   const [filter, setFilter] = useState<"all" | "available" | "taken">("all");
 
+  // Fetch contest data
+  const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
+    queryKey: ["/api/contests", contestId],
+    queryFn: async () => {
+      const response = await fetch(`/api/contests/${contestId}`);
+      if (!response.ok) throw new Error("Failed to fetch contest");
+      return response.json();
+    },
+  });
+
+  // Fetch squares data
+  const { data: squares = [], isLoading: squaresLoading } = useQuery<Square[]>({
+    queryKey: ["/api/contests", contestId, "squares"],
+    queryFn: async () => {
+      const response = await fetch(`/api/contests/${contestId}/squares`);
+      if (!response.ok) throw new Error("Failed to fetch squares");
+      return response.json();
+    },
+  });
+
+  // Update contest mutation
+  const updateContestMutation = useMutation({
+    mutationFn: async (data: Partial<Contest>) => {
+      return await apiRequest(`/api/contests/${contestId}`, "PATCH", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
+    },
+  });
+
+  // Update square mutation
+  const updateSquareMutation = useMutation({
+    mutationFn: async ({ index, data }: { index: number; data: Partial<Square> }) => {
+      return await apiRequest(`/api/contests/${contestId}/squares/${index}`, "PATCH", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
+    },
+  });
+
   const toggleLock = () => {
-    setContest(prev => ({
-      ...prev,
-      status: prev.status === "open" ? "locked" : "open"
-    }));
-    toast({
-      title: contest.status === "open" ? "Contest Locked" : "Contest Unlocked",
-      description: contest.status === "open" 
-        ? "Entrants can no longer claim squares." 
-        : "Entrants can now claim squares.",
-    });
+    const newStatus = contest?.status === "open" ? "locked" : "open";
+    updateContestMutation.mutate(
+      { status: newStatus },
+      {
+        onSuccess: () => {
+          toast({
+            title: newStatus === "locked" ? "Contest Locked" : "Contest Unlocked",
+            description: newStatus === "locked"
+              ? "Entrants can no longer claim squares."
+              : "Entrants can now claim squares.",
+          });
+        },
+      }
+    );
   };
 
   const shuffleAxis = () => {
@@ -79,17 +94,23 @@ export default function ContestManager() {
       }
       return newArr;
     };
-    
-    setContest(prev => ({
-      ...prev,
-      topAxisNumbers: shuffle(prev.topAxisNumbers),
-      leftAxisNumbers: shuffle(prev.leftAxisNumbers),
-    }));
-    
-    toast({
-      title: "Axis Numbers Shuffled",
-      description: "The top and left axis numbers have been randomized.",
-    });
+
+    if (!contest) return;
+
+    updateContestMutation.mutate(
+      {
+        topAxisNumbers: shuffle([...contest.topAxisNumbers]),
+        leftAxisNumbers: shuffle([...contest.leftAxisNumbers]),
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Axis Numbers Shuffled",
+            description: "The top and left axis numbers have been randomized.",
+          });
+        },
+      }
+    );
   };
 
   const handleReleaseSquare = (squareIndex: number) => {
@@ -99,20 +120,56 @@ export default function ContestManager() {
 
   const confirmReleaseSquare = () => {
     if (selectedSquareToRelease) {
-      setSquares(prev => prev.map(s =>
-        s.index === selectedSquareToRelease
-          ? { ...s, status: "available" as const, entryName: undefined, holderName: undefined, holderEmail: undefined }
-          : s
-      ));
-      
-      toast({
-        title: "Square Released",
-        description: `Square #${selectedSquareToRelease} is now available.`,
-      });
+      updateSquareMutation.mutate(
+        {
+          index: selectedSquareToRelease,
+          data: {
+            status: "available",
+            entryName: null,
+            holderName: null,
+            holderEmail: null,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast({
+              title: "Square Released",
+              description: `Square #${selectedSquareToRelease} is now available.`,
+            });
+          },
+        }
+      );
     }
     setShowReleaseDialog(false);
     setSelectedSquareToRelease(null);
   };
+
+  const handleUpdateWinner = (quarter: "q1" | "q2" | "q3" | "q4", value: string) => {
+    const winnerField = `${quarter}Winner`;
+    updateContestMutation.mutate({ [winnerField]: value });
+  };
+
+  if (contestLoading || squaresLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopNav title="SquareKeeper" />
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          <p className="text-muted-foreground">Loading contest...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!contest) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopNav title="SquareKeeper" />
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          <p className="text-destructive">Contest not found</p>
+        </main>
+      </div>
+    );
+  }
 
   const filteredSquares = squares.filter(s => {
     if (filter === "all") return true;
@@ -123,6 +180,9 @@ export default function ContestManager() {
 
   const takenCount = squares.filter(s => s.status === "taken").length;
   const availableCount = squares.filter(s => s.status === "available").length;
+  
+  const redRows = Array.from({ length: contest.redRowsCount }, (_, i) => i);
+  const redCols: number[] = [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,7 +207,7 @@ export default function ContestManager() {
                 {contest.topTeam} vs {contest.leftTeam}
               </p>
             </div>
-            <StatusBadge status={contest.status} />
+            <StatusBadge status={contest.status as "open" | "locked"} />
           </div>
         </div>
 
@@ -189,99 +249,109 @@ export default function ContestManager() {
             </div>
 
             <div className="bg-card border rounded-lg p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Taken: </span>
+                    <span className="font-medium">{takenCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Available: </span>
+                    <span className="font-medium">{availableCount}</span>
+                  </div>
+                </div>
+              </div>
+              
               <SquareGrid
                 topTeam={contest.topTeam}
                 leftTeam={contest.leftTeam}
                 topAxisNumbers={contest.topAxisNumbers}
                 leftAxisNumbers={contest.leftAxisNumbers}
-                redRows={contest.redRows}
-                redCols={contest.redCols}
+                redRows={redRows}
+                redCols={redCols}
                 squares={squares}
-                onSquareClick={(square) => console.log("Admin clicked square:", square)}
-                readOnly={false}
+                readOnly={true}
               />
             </div>
           </TabsContent>
 
           <TabsContent value="squares" className="space-y-6">
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Squares List</h3>
-                <div className="flex gap-2">
-                  <Button
-                    variant={filter === "all" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilter("all")}
-                    data-testid="button-filter-all"
-                  >
-                    All ({squares.length})
-                  </Button>
-                  <Button
-                    variant={filter === "available" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilter("available")}
-                    data-testid="button-filter-available"
-                  >
-                    Available ({availableCount})
-                  </Button>
-                  <Button
-                    variant={filter === "taken" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setFilter("taken")}
-                    data-testid="button-filter-taken"
-                  >
-                    Taken ({takenCount})
-                  </Button>
-                </div>
-              </div>
+            <div className="flex gap-2">
+              <Button
+                variant={filter === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("all")}
+                data-testid="filter-all"
+              >
+                All ({squares.length})
+              </Button>
+              <Button
+                variant={filter === "available" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("available")}
+                data-testid="filter-available"
+              >
+                Available ({availableCount})
+              </Button>
+              <Button
+                variant={filter === "taken" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter("taken")}
+                data-testid="filter-taken"
+              >
+                Taken ({takenCount})
+              </Button>
+            </div>
 
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {filteredSquares.map((square) => (
-                  <div
-                    key={square.index}
-                    className="flex items-center justify-between p-3 border rounded hover-elevate"
-                    data-testid={`square-item-${square.index}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono font-semibold w-8">#{square.index}</span>
-                      <Badge variant={square.status === "taken" ? "secondary" : "outline"}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredSquares.map((square) => (
+                <Card key={square.id} className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono font-semibold">
+                        #{square.index}
+                      </span>
+                      <Badge variant={
+                        square.status === "available" ? "outline" :
+                        square.status === "taken" ? "default" : "secondary"
+                      }>
                         {square.status}
                       </Badge>
-                      {square.status === "taken" && (
-                        <div className="text-sm">
-                          <span className="font-medium">{square.entryName}</span>
-                          <span className="text-muted-foreground ml-2">
-                            ({square.holderName})
-                          </span>
-                        </div>
-                      )}
                     </div>
-                    {square.status === "taken" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleReleaseSquare(square.index)}
-                        data-testid={`button-release-${square.index}`}
-                      >
-                        Release
-                      </Button>
-                    )}
                   </div>
-                ))}
-              </div>
-            </Card>
+                  
+                  {square.status === "taken" && (
+                    <div className="space-y-1 text-sm mb-3">
+                      <p className="font-medium">{square.entryName}</p>
+                      <p className="text-muted-foreground">{square.holderName}</p>
+                      <p className="text-xs text-muted-foreground">{square.holderEmail}</p>
+                    </div>
+                  )}
+                  
+                  {square.status === "taken" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReleaseSquare(square.index)}
+                      className="w-full"
+                      data-testid={`button-release-${square.index}`}
+                    >
+                      Release Square
+                    </Button>
+                  )}
+                </Card>
+              ))}
+            </div>
           </TabsContent>
 
-          <TabsContent value="winners" className="space-y-6">
+          <TabsContent value="winners">
             <WinnersPanel
-              q1Winner={winners.q1}
-              q2Winner={winners.q2}
-              q3Winner={winners.q3}
-              q4Winner={winners.q4}
-              onUpdate={(quarter, value) => {
-                setWinners(prev => ({ ...prev, [quarter]: value }));
-                console.log(`${quarter} winner updated:`, value);
-              }}
+              q1Winner={contest.q1Winner || ""}
+              q2Winner={contest.q2Winner || ""}
+              q3Winner={contest.q3Winner || ""}
+              q4Winner={contest.q4Winner || ""}
+              onUpdateWinner={handleUpdateWinner}
+              readOnly={false}
             />
           </TabsContent>
         </Tabs>
@@ -290,11 +360,9 @@ export default function ContestManager() {
       <ConfirmDialog
         open={showReleaseDialog}
         onOpenChange={setShowReleaseDialog}
-        title="Release Square?"
-        description={`Square #${selectedSquareToRelease} will become available for others to claim. This action cannot be undone.`}
+        title="Release Square"
+        description={`Are you sure you want to release square #${selectedSquareToRelease}? This will make it available for others to claim.`}
         confirmLabel="Release"
-        cancelLabel="Cancel"
-        variant="destructive"
         onConfirm={confirmReleaseSquare}
       />
     </div>
