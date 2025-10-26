@@ -18,6 +18,7 @@ interface SquareGridProps {
   leftAxisNumbers: number[][];
   topLayerLabels?: string[];
   leftLayerLabels?: string[];
+  showRedHeaders?: boolean;
   squares: Square[];
   onSquareClick?: (square: Square) => void;
   readOnly?: boolean;
@@ -30,6 +31,7 @@ export default function SquareGrid({
   leftAxisNumbers,
   topLayerLabels,
   leftLayerLabels,
+  showRedHeaders = false,
   squares,
   onSquareClick,
   readOnly = false
@@ -158,7 +160,9 @@ export default function SquareGrid({
                     className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
                     data-testid={`header-top-layer${rowIdx}-col${colIdx}`}
                   >
-                    <span className="text-sm font-mono font-semibold">{num}</span>
+                    {showRedHeaders && (
+                      <span className="text-sm font-mono font-semibold">{num}</span>
+                    )}
                   </div>
                 ))}
               </Fragment>
@@ -174,9 +178,11 @@ export default function SquareGrid({
                     className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
                     data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
                   >
-                    <span className="text-sm font-mono font-semibold">
-                      {leftAxisNumbers[layerIdx][rowIdx]}
-                    </span>
+                    {showRedHeaders && (
+                      <span className="text-sm font-mono font-semibold">
+                        {leftAxisNumbers[layerIdx][rowIdx]}
+                      </span>
+                    )}
                   </div>
                 ))}
               

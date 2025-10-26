@@ -33,6 +33,7 @@ export const contests = pgTable("contests", {
   topLayerLabels: jsonb("top_layer_labels").$type<string[]>(),
   leftLayerLabels: jsonb("left_layer_labels").$type<string[]>(),
   redRowsCount: integer("red_rows_count").notNull().default(2),
+  showRedHeaders: boolean("show_red_headers").notNull().default(false),
   status: contestStatusEnum("status").notNull().default("open"),
   q1Winner: text("q1_winner"),
   q2Winner: text("q2_winner"),
