@@ -8,6 +8,16 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 26, 2025 - Preset-Based Payout Configuration System
+- **Unified Naming**: Added preset selector (Quarters, Halves, Custom) that synchronizes layer labels with prize labels to eliminate "Q2 vs Half" and "Q4 vs Final" confusion
+- **Quarters Preset**: Automatically configures 4 layers with Q1-Q4 labels and matching prize labels
+- **Halves Preset**: Automatically configures 2 layers with H1-H2 labels and matching prize labels
+- **Custom Mode**: Full user control over layer count and labels with validation warnings when prize count ≠ layer count
+- **Smart Preset Lock**: Editing prize amounts preserves preset lock; only label changes or structural modifications switch to Custom mode
+- **Validation UI**: Inline warning alerts when prize count doesn't match layer count in Custom mode
+- **Improved Help Text**: Updated tips in PrizesEditor to clarify layer↔prize connection and preset usage
+- **End-to-End Verified**: Complete preset workflow tested (select preset → edit amounts → save contest)
+
 ### October 26, 2025 - Layer Color-Coded Winner Highlighting
 - **Visual Connection**: Winning squares now filled with matching header layer color instead of gold
 - **Prize-to-Layer Mapping**: Winner square color determined by prize index in prizes array (Prize 0 → Layer 0 color, etc.)
