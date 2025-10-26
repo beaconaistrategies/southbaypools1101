@@ -1,5 +1,4 @@
 import { useState, Fragment } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import type { Winner, Prize } from "@shared/schema";
 
@@ -25,7 +24,6 @@ interface SquareGridProps {
   prizes?: Prize[];
   winners?: Winner[];
   onSquareClick?: (square: Square) => void;
-  onSquareView?: (square: Square) => void;
   readOnly?: boolean;
 }
 
@@ -41,7 +39,6 @@ export default function SquareGrid({
   prizes = [],
   winners = [],
   onSquareClick,
-  onSquareView,
   readOnly = false
 }: SquareGridProps) {
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
@@ -91,18 +88,8 @@ export default function SquareGrid({
   };
 
   const handleSquareClick = (square: Square) => {
-    if (square.status === "disabled") return;
-    
-    // If square is taken, show details
-    if (square.status === "taken" && onSquareView) {
-      onSquareView(square);
-      return;
-    }
-    
-    // If square is available and not readOnly, allow claiming
-    if (square.status === "available" && !readOnly) {
-      onSquareClick?.(square);
-    }
+    if (readOnly || square.status === "disabled") return;
+    onSquareClick?.(square);
   };
 
   const renderSquareContent = (square: Square) => {
@@ -126,7 +113,7 @@ export default function SquareGrid({
           : "bg-background";
     const hoverClass = !readOnly && isAvailable ? "hover-elevate active-elevate-2" : "";
     
-    const content = (
+    return (
       <div 
         className={`${baseClasses} ${cursorClass} ${bgClass} ${borderClass} ${hoverClass}`}
         onClick={() => handleSquareClick(square)}
@@ -152,27 +139,6 @@ export default function SquareGrid({
         )}
       </div>
     );
-
-    if (isTaken && square.entryName) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {content}
-          </TooltipTrigger>
-          <TooltipContent>
-            <div className="space-y-1">
-              <p className="font-semibold">{square.entryName}</p>
-              <p className="text-sm">{square.holderName}</p>
-              <p className="text-xs text-muted-foreground">
-                {square.holderEmail?.replace(/(.{2})(.*)(@.*)/, '$1***$3')}
-              </p>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-
-    return content;
   };
 
   // Calculate total columns: redHeadersCount (left labels) + 10 (data columns)
