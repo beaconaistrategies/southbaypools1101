@@ -170,6 +170,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get contests by participant email
+  app.get("/api/my-contests/:email", async (req, res) => {
+    try {
+      const email = req.params.email.toLowerCase().trim();
+      const contests = await storage.getAllContests();
+      const participations: Array<{
+        contestId: string;
+        contestName: string;
+        eventDate: Date;
+        topTeam: string;
+        leftTeam: string;
+        squareNumber: number;
+        entryName: string;
+      }> = [];
+
+      // Find all squares claimed by this email across all contests
+      for (const contest of contests) {
+        const squares = await storage.getContestSquares(contest.id);
+        const userSquares = squares.filter(
+          s => s.holderEmail?.toLowerCase() === email && s.status === "taken"
+        );
+
+        userSquares.forEach(square => {
+          participations.push({
+            contestId: contest.id,
+            contestName: contest.name,
+            eventDate: contest.eventDate,
+            topTeam: contest.topTeam,
+            leftTeam: contest.leftTeam,
+            squareNumber: square.index,
+            entryName: square.entryName || "",
+          });
+        });
+      }
+
+      // Sort by event date (most recent first)
+      participations.sort((a, b) => b.eventDate.getTime() - a.eventDate.getTime());
+
+      res.json(participations);
+    } catch (error) {
+      console.error("Error fetching user contests:", error);
+      res.status(500).json({ error: "Failed to fetch contests" });
+    }
+  });
+
   // Square routes
   
   // Get squares for a contest

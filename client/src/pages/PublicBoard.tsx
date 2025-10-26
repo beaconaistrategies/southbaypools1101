@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { User } from "lucide-react";
 import SquareGrid from "@/components/SquareGrid";
 import ClaimSquareModal from "@/components/ClaimSquareModal";
 import WinnersPanel from "@/components/WinnersPanel";
@@ -130,7 +132,15 @@ export default function PublicBoard() {
                 {contest.topTeam} vs {contest.leftTeam}
               </p>
             </div>
-            <StatusBadge status={contest.status as "open" | "locked"} />
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" asChild data-testid="button-my-contests">
+                <Link href="/my-contests">
+                  <User className="h-4 w-4 mr-2" />
+                  My Contests
+                </Link>
+              </Button>
+              <StatusBadge status={contest.status as "open" | "locked"} />
+            </div>
           </div>
           
           <div className="flex gap-6 text-sm">
