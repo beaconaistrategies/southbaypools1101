@@ -135,25 +135,30 @@ export default function SquareGrid({
               gridTemplateColumns: `repeat(${redHeadersCount}, minmax(60px, 80px)) repeat(10, minmax(50px, 1fr))` 
             }}
           >
-            {/* Top-left corner: redHeadersCount x redHeadersCount pink area */}
+            {/* Top-left corner: redHeadersCount x redHeadersCount pink area with merged diagonal cells */}
+            {Array.from({ length: redHeadersCount }).map((_, layerIdx) => {
+              // Each layer label cell spans from its diagonal position to bottom-right
+              const span = redHeadersCount - layerIdx;
+              return (
+                <div 
+                  key={`corner-layer-${layerIdx}`}
+                  className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                  style={{
+                    gridColumn: `${layerIdx + 1} / span ${span}`,
+                    gridRow: `${layerIdx + 1} / span ${span}`
+                  }}
+                  data-testid={`corner-layer-${layerIdx}`}
+                >
+                  <span className="text-xs font-mono font-semibold">
+                    {topLayerLabels?.[layerIdx] || leftLayerLabels?.[layerIdx] || `L${layerIdx + 1}`}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Top header numbers - render all layers */}
             {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
-              <Fragment key={`corner-row-${rowIdx}`}>
-                {Array.from({ length: redHeadersCount }).map((_, colIdx) => (
-                  <div 
-                    key={`corner-${rowIdx}-${colIdx}`}
-                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
-                    data-testid={`corner-${rowIdx}-${colIdx}`}
-                  >
-                    {/* Show layer labels in corner cells if they intersect */}
-                    {rowIdx === colIdx && (
-                      <span className="text-xs font-mono font-semibold">
-                        {topLayerLabels?.[rowIdx] || leftLayerLabels?.[colIdx] || `L${rowIdx + 1}`}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                
-                {/* Top header numbers for this layer */}
+              <Fragment key={`top-header-row-${rowIdx}`}>
                 {topAxisNumbers[rowIdx].map((num, colIdx) => (
                   <div 
                     key={`top-header-${rowIdx}-${colIdx}`}
