@@ -347,3 +347,58 @@
     inset: -1px;
   }
 }
+
+/* Print-friendly styles for grid view */
+@media print {
+  /* Hide navigation, buttons, and controls */
+  nav,
+  button,
+  .no-print,
+  [data-testid*="button"],
+  [data-testid="filter-"],
+  header > *:not(h1):not(h2):not(h3),
+  input[type="search"] {
+    display: none !important;
+  }
+
+  /* Ensure the grid prints nicely */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Optimize page layout for printing */
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+
+  /* Ensure grid is visible and sized properly */
+  table,
+  .grid {
+    page-break-inside: avoid;
+  }
+
+  /* Print colors for grid squares */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Remove shadows and borders that don't print well */
+  .shadow,
+  .shadow-lg,
+  .shadow-md {
+    box-shadow: none !important;
+  }
+
+  /* Ensure contest header prints */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  /* Make sure team names and labels are visible */
+  .text-muted-foreground {
+    color: #666 !important;
+  }
+}
