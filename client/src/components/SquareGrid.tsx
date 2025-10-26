@@ -112,19 +112,19 @@ export default function SquareGrid({
 
   return (
     <div className="w-full overflow-x-auto">
-      <div className="flex gap-4 items-start">
-        {/* Left team name - vertical from bottom to top */}
+      <div className="flex gap-4 items-center">
+        {/* Team 1 (topTeam) - vertical from bottom to top */}
         <div className="flex-shrink-0" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
           <span className="text-5xl font-bold tracking-wide">
-            {leftTeam}
+            {topTeam}
           </span>
         </div>
 
         <div className="flex-1">
-          {/* Top team name - horizontal above grid */}
+          {/* Team 2 (leftTeam) - horizontal above grid */}
           <div className="flex items-center justify-center mb-4">
             <span className="text-5xl font-bold tracking-wide">
-              {topTeam}
+              {leftTeam}
             </span>
           </div>
 

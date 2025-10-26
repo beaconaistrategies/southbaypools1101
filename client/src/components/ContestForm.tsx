@@ -158,7 +158,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="topTeam">
-                Team 1 (Column Header) <span className="text-destructive">*</span>
+                Team 1 (Vertical) <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="topTeam"
@@ -172,7 +172,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
             <div className="space-y-2">
               <Label htmlFor="leftTeam">
-                Team 2 (Row Header) <span className="text-destructive">*</span>
+                Team 2 (Horizontal) <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="leftTeam"
