@@ -115,15 +115,15 @@ export default function SquareGrid({
       <div className="flex gap-4 items-start">
         {/* Left team name - vertical from bottom to top */}
         <div className="flex-shrink-0" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-          <span className="text-2xl font-bold tracking-wide">
+          <span className="text-5xl font-bold tracking-wide">
             {leftTeam}
           </span>
         </div>
 
         <div className="flex-1">
           {/* Top team name - horizontal above grid */}
-          <div className="flex items-center justify-center mb-2">
-            <span className="text-2xl font-bold tracking-wide">
+          <div className="flex items-center justify-center mb-4">
+            <span className="text-5xl font-bold tracking-wide">
               {topTeam}
             </span>
           </div>
