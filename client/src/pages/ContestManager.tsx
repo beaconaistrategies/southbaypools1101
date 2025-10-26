@@ -5,6 +5,7 @@ import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
 import { ArrowLeft } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
+import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Shuffle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Contest, Square } from "@shared/schema";
+import type { Contest, Square, Prize } from "@shared/schema";
 
 export default function ContestManager() {
   const { toast } = useToast();
@@ -380,7 +381,7 @@ export default function ContestManager() {
             </div>
           </TabsContent>
 
-          <TabsContent value="winners">
+          <TabsContent value="winners" className="space-y-6">
             <WinnersPanel
               q1Winner={contest.q1Winner || ""}
               q2Winner={contest.q2Winner || ""}
@@ -388,6 +389,23 @@ export default function ContestManager() {
               q4Winner={contest.q4Winner || ""}
               onUpdate={handleUpdateWinner}
               readOnly={false}
+            />
+            
+            <PrizesEditor
+              prizes={contest.prizes || []}
+              onUpdate={(prizes: Prize[]) => {
+                updateContestMutation.mutate(
+                  { prizes },
+                  {
+                    onSuccess: () => {
+                      toast({
+                        title: "Prizes Updated",
+                        description: "Prize payouts have been saved.",
+                      });
+                    },
+                  }
+                );
+              }}
             />
           </TabsContent>
         </Tabs>

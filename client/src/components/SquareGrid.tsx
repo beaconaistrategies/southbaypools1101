@@ -149,7 +149,7 @@ export default function SquareGrid({
                   }}
                   data-testid={`corner-layer-${layerIdx}`}
                 >
-                  <span className="text-xs font-mono font-semibold">
+                  <span className="text-lg font-mono font-bold">
                     {topLayerLabels?.[layerIdx] || leftLayerLabels?.[layerIdx] || `L${layerIdx + 1}`}
                   </span>
                 </div>

@@ -21,6 +21,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+export type Prize = {
+  label: string;
+  amount: string;
+};
+
 export const contests = pgTable("contests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -35,6 +40,7 @@ export const contests = pgTable("contests", {
   redRowsCount: integer("red_rows_count").notNull().default(2),
   showRedHeaders: boolean("show_red_headers").notNull().default(false),
   status: contestStatusEnum("status").notNull().default("open"),
+  prizes: jsonb("prizes").$type<Prize[]>().default(sql`'[]'::jsonb`),
   q1Winner: text("q1_winner"),
   q2Winner: text("q2_winner"),
   q3Winner: text("q3_winner"),
