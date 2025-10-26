@@ -39,6 +39,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [topTeam, setTopTeam] = useState(initialData?.topTeam || "");
   const [leftTeam, setLeftTeam] = useState(initialData?.leftTeam || "");
   const [notes, setNotes] = useState(initialData?.notes || "");
+  const [webhookUrl, setWebhookUrl] = useState((initialData as any)?.webhookUrl || "");
   const [redRowsCount, setRedRowsCount] = useState(initialData?.redRowsCount || 2);
   
   // Initialize nested arrays based on redRowsCount
@@ -154,6 +155,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       topTeam,
       leftTeam,
       notes,
+      webhookUrl: webhookUrl.trim() || undefined,
       topAxisNumbers,
       leftAxisNumbers,
       topLayerLabels: topLayerLabels.filter(l => l.trim()),
@@ -238,6 +240,21 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               rows={3}
               data-testid="input-notes"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="webhookUrl">Webhook URL (Optional)</Label>
+            <Input
+              id="webhookUrl"
+              type="url"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://your-n8n-webhook.com/..."
+              data-testid="input-webhook-url"
+            />
+            <p className="text-sm text-muted-foreground">
+              Enter your n8n webhook URL to send email notifications when participants claim squares. This will trigger Go High Level to send confirmation emails.
+            </p>
           </div>
         </div>
       </Card>

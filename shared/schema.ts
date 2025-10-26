@@ -51,6 +51,7 @@ export const contests = pgTable("contests", {
   q2Winner: text("q2_winner"),
   q3Winner: text("q3_winner"),
   q4Winner: text("q4_winner"),
+  webhookUrl: text("webhook_url"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 

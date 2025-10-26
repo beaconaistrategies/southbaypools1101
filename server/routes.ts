@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema } from "@shared/schema";
 import { z } from "zod";
+import { sendWebhookNotification } from "./webhook";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Contest routes
@@ -199,6 +200,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!square) {
         return res.status(404).json({ error: "Square not found" });
       }
+
+      // If a square was just claimed, send webhook notification
+      if (square.status === "taken" && square.holderEmail && square.entryName) {
+        const contest = await storage.getContest(req.params.contestId);
+        if (contest?.webhookUrl) {
+          // Fire and forget - don't await
+          sendWebhookNotification(contest.webhookUrl, {
+            contestName: contest.name,
+            contestId: contest.id,
+            entryName: square.entryName,
+            holderEmail: square.holderEmail,
+            holderName: square.holderName || square.entryName,
+            squareNumber: square.index,
+            topTeam: contest.topTeam,
+            leftTeam: contest.leftTeam,
+            eventDate: contest.eventDate.toISOString(),
+          }).catch(err => console.error("Webhook notification failed:", err));
+        }
+      }
+      
       res.json(square);
     } catch (error) {
       if (error instanceof z.ZodError) {
