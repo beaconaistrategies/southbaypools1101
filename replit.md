@@ -2,23 +2,31 @@
 
 ## Overview
 
-SquareKeeper is a football squares pool management system that enables administrators to create and manage multiple contests while providing a public-facing interface for participants to claim squares. The application features a 10×10 grid system where each contest represents a football game with customizable team labels, axis numbers (0-9), and configurable red header rows/columns for visual emphasis.
+SquareKeeper is a football squares pool management system that enables administrators to create and manage multiple contests while providing a public-facing interface for participants to claim squares. The application features a 10×10 grid system where each contest represents a football game with customizable team labels, multi-layer axis numbers for different payout periods (quarters, halves), and configurable red header rows/columns with optional period labels.
 
-**Core Purpose:** Simplify the management of football squares pools by providing real-time square claiming, contest configuration, and winner tracking across multiple simultaneous contests.
+**Core Purpose:** Simplify the management of football squares pools by providing real-time square claiming, contest configuration with multiple payout layers, and winner tracking across multiple simultaneous contests.
 
 ## Recent Changes
 
+### October 26, 2025 - Multi-Layer Red Headers Refactor
+- **Schema Migration**: Changed topAxisNumbers and leftAxisNumbers from `number[]` to `number[][]` (jsonb) to support multiple payout layers
+- **Layer Labels**: Added optional topLayerLabels and leftLayerLabels (string[] arrays) to name periods like "Q1", "Q2", "Q3", "Q4"
+- **Multi-Layer Architecture**: redHeadersCount now determines number of 0-9 digit sets (layers), creating multiple payout periods
+  - 2 red headers = 2 layers for halftime payouts (Q1, Q2)
+  - 4 red headers = 4 layers for quarter payouts (Q1, Q2, Q3, Q4)
+  - Up to 6 layers supported with validation
+- **Nested Array Validation**: Updated Zod schemas to validate each layer has exactly 10 digits (0-9), outer array length matches redHeadersCount
+- **Grid Structure**: SquareGrid now renders redHeadersCount × redHeadersCount pink corner area with layer labels
+- **Independent Shuffling**: Each layer shuffles independently, creating unique 0-9 permutations per period
+- **ContestForm Enhancement**: Dynamic layer label inputs that auto-adjust when redHeadersCount changes
+- **End-to-End Verified**: Complete 2-layer workflow tested (create → shuffle → display on manager/public boards)
+
 ### October 26, 2025 - Full Backend Integration & UI Refinements
 - **Database Schema**: Implemented PostgreSQL schema with pgEnum for contest_status ("open", "locked") and square_status ("available", "taken", "disabled")
-- **Validation Layer**: Added Zod schemas with array length/value constraints (topAxisNumbers/leftAxisNumbers must be length 10 with values 0-9, redRowsCount 1-6)
 - **API Routes**: Created validated REST endpoints with proper error handling (400 for invalid data, 404 for not found)
 - **N+1 Pattern Fix**: Optimized /api/contests to return square counts (takenSquares, totalSquares) in single query
 - **Strong Typing**: Restored Square[] typing throughout frontend with null-safe optional fields
-- **End-to-End Testing**: Verified complete contest lifecycle (create → shuffle → claim → release → lock)
-- **API Parameter Fix**: Corrected all apiRequest calls to use proper parameter order (method, url, data)
-- **Team Name Display**: Team 1 (topTeam) displays horizontally above grid in large bold font; Team 2 (leftTeam) displays vertically on left side rotated bottom-to-top
-- **Red Header Behavior**: Before shuffling, red header cells show solid red background with no numbers visible; after shuffling, numbers appear and red background is removed
-- **UI Cleanup**: Removed "Red Headers" from legend on public board (shows only Available, Taken, Disabled)
+- **Team Name Display**: Team 1 (topTeam) displays horizontally above grid; Team 2 (leftTeam) displays vertically rotated
 
 ## User Preferences
 
