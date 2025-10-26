@@ -48,6 +48,11 @@ export default function PublicBoard() {
   });
 
   const handleSquareClick = (square: any) => {
+    // Only allow clicking on available squares
+    if (square.status !== "available") {
+      return;
+    }
+
     if (contest?.status === "locked") {
       toast({
         title: "Contest Locked",
@@ -57,9 +62,7 @@ export default function PublicBoard() {
       return;
     }
     
-    if (square.status === "available") {
-      setSelectedSquare(square.index);
-    }
+    setSelectedSquare(square.index);
   };
 
   const handleClaimSquare = (data: { holderName: string; holderEmail: string; entryName: string }) => {

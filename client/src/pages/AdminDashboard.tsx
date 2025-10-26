@@ -29,7 +29,7 @@ export default function AdminDashboard() {
   };
 
   const handleManage = (id: string) => {
-    setLocation(`/admin/contest/${id}`);
+    setLocation(`/admin/contests/${id}`);
   };
 
   // Filter and sort contests
