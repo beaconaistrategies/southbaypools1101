@@ -51,7 +51,7 @@ export default function ContestManager() {
   // Update contest mutation
   const updateContestMutation = useMutation({
     mutationFn: async (data: Partial<Contest>) => {
-      return await apiRequest(`/api/contests/${contestId}`, "PATCH", data);
+      return await apiRequest("PATCH", `/api/contests/${contestId}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
@@ -61,7 +61,7 @@ export default function ContestManager() {
   // Update square mutation
   const updateSquareMutation = useMutation({
     mutationFn: async ({ index, data }: { index: number; data: Partial<Square> }) => {
-      return await apiRequest(`/api/contests/${contestId}/squares/${index}`, "PATCH", data);
+      return await apiRequest("PATCH", `/api/contests/${contestId}/squares/${index}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });

@@ -11,7 +11,7 @@ export default function NewContest() {
 
   const createContestMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest("/api/contests", "POST", data);
+      return await apiRequest("POST", "/api/contests", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contests"] });

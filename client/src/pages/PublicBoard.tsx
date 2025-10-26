@@ -38,7 +38,7 @@ export default function PublicBoard() {
   // Claim square mutation
   const claimSquareMutation = useMutation({
     mutationFn: async ({ index, data }: { index: number; data: any }) => {
-      return await apiRequest(`/api/contests/${contestId}/squares/${index}`, "PATCH", data);
+      return await apiRequest("PATCH", `/api/contests/${contestId}/squares/${index}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
