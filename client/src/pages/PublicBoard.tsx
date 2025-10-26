@@ -164,6 +164,7 @@ export default function PublicBoard() {
               leftLayerLabels={contest.leftLayerLabels || undefined}
               showRedHeaders={contest.showRedHeaders}
               squares={squares}
+              winners={contest.winners || []}
               onSquareClick={handleSquareClick}
               readOnly={contest.status === "locked"}
             />

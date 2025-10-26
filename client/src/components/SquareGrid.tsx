@@ -1,5 +1,7 @@
 import { useState, Fragment } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import type { Winner } from "@shared/schema";
 
 interface Square {
   index: number;
@@ -20,6 +22,7 @@ interface SquareGridProps {
   leftLayerLabels?: string[];
   showRedHeaders?: boolean;
   squares: Square[];
+  winners?: Winner[];
   onSquareClick?: (square: Square) => void;
   readOnly?: boolean;
 }
@@ -33,12 +36,32 @@ export default function SquareGrid({
   leftLayerLabels,
   showRedHeaders = false,
   squares,
+  winners = [],
   onSquareClick,
   readOnly = false
 }: SquareGridProps) {
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
 
   const redHeadersCount = topAxisNumbers.length;
+
+  // Color mapping for different layers - using distinct hues
+  const getLayerColor = (layerIdx: number): string => {
+    const colors = [
+      "bg-rose-200/80 dark:bg-rose-900/40",      // Layer 0: Rose
+      "bg-blue-200/80 dark:bg-blue-900/40",      // Layer 1: Blue
+      "bg-amber-200/80 dark:bg-amber-900/40",    // Layer 2: Amber
+      "bg-emerald-200/80 dark:bg-emerald-900/40", // Layer 3: Emerald
+      "bg-purple-200/80 dark:bg-purple-900/40",  // Layer 4: Purple
+      "bg-cyan-200/80 dark:bg-cyan-900/40",      // Layer 5: Cyan
+    ];
+    return colors[layerIdx] || colors[0];
+  };
+
+  // Check if a square is a winner
+  const getWinnerLabel = (squareNumber: number): string | undefined => {
+    const winner = winners.find(w => w.squareNumber === squareNumber);
+    return winner?.label;
+  };
 
   const getSquare = (row: number, col: number): Square | undefined => {
     return squares.find(s => s.row === row && s.col === col);
@@ -53,19 +76,26 @@ export default function SquareGrid({
     const isAvailable = square.status === "available";
     const isTaken = square.status === "taken";
     const isDisabled = square.status === "disabled";
+    const winnerLabel = getWinnerLabel(square.index);
+    const isWinner = !!winnerLabel;
     
-    const baseClasses = "relative flex flex-col items-center justify-center min-h-[50px] border border-border text-center transition-all";
+    const baseClasses = "relative flex flex-col items-center justify-center min-h-[50px] border text-center transition-all";
     const cursorClass = readOnly || isDisabled ? "cursor-default" : (isAvailable ? "cursor-pointer" : "cursor-default");
-    const bgClass = isTaken 
-      ? "bg-muted" 
-      : isDisabled 
-        ? "bg-muted/40" 
-        : "bg-background";
+    
+    // Winner squares get special styling with gold border
+    const borderClass = isWinner ? "border-2 border-yellow-500 dark:border-yellow-600" : "border-border";
+    const bgClass = isWinner
+      ? "bg-yellow-100/80 dark:bg-yellow-900/30"
+      : isTaken 
+        ? "bg-muted" 
+        : isDisabled 
+          ? "bg-muted/40" 
+          : "bg-background";
     const hoverClass = !readOnly && isAvailable ? "hover-elevate active-elevate-2" : "";
     
     const content = (
       <div 
-        className={`${baseClasses} ${cursorClass} ${bgClass} ${hoverClass}`}
+        className={`${baseClasses} ${cursorClass} ${bgClass} ${borderClass} ${hoverClass}`}
         onClick={() => handleSquareClick(square)}
         onMouseEnter={() => setHoveredSquare(square.index)}
         onMouseLeave={() => setHoveredSquare(null)}
@@ -74,6 +104,11 @@ export default function SquareGrid({
         <span className="absolute top-1 left-1 text-xs font-mono text-muted-foreground">
           {square.index}
         </span>
+        {isWinner && (
+          <Badge variant="default" className="absolute top-1 right-1 text-xs bg-yellow-600 hover:bg-yellow-700">
+            {winnerLabel}
+          </Badge>
+        )}
         {isTaken && square.entryName && (
           <span className="text-xs font-medium truncate px-2 max-w-full">
             {square.entryName}
@@ -135,14 +170,14 @@ export default function SquareGrid({
               gridTemplateColumns: `repeat(${redHeadersCount}, minmax(60px, 80px)) repeat(10, minmax(50px, 1fr))` 
             }}
           >
-            {/* Top-left corner: redHeadersCount x redHeadersCount pink area with merged diagonal cells */}
+            {/* Top-left corner: redHeadersCount x redHeadersCount area with merged diagonal cells */}
             {Array.from({ length: redHeadersCount }).map((_, layerIdx) => {
               // Each layer label cell spans from its diagonal position to bottom-right
               const span = redHeadersCount - layerIdx;
               return (
                 <div 
                   key={`corner-layer-${layerIdx}`}
-                  className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                  className={`border border-border ${getLayerColor(layerIdx)} flex items-center justify-center min-h-[50px]`}
                   style={{
                     gridColumn: `${layerIdx + 1} / span ${span}`,
                     gridRow: `${layerIdx + 1} / span ${span}`
@@ -162,7 +197,7 @@ export default function SquareGrid({
                 {topAxisNumbers[rowIdx].map((num, colIdx) => (
                   <div 
                     key={`top-header-${rowIdx}-${colIdx}`}
-                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                    className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
                     data-testid={`header-top-layer${rowIdx}-col${colIdx}`}
                   >
                     {showRedHeaders && (
@@ -180,7 +215,7 @@ export default function SquareGrid({
                 {Array.from({ length: redHeadersCount }).map((_, layerIdx) => (
                   <div 
                     key={`left-header-${layerIdx}-${rowIdx}`}
-                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                    className={`border border-border ${getLayerColor(layerIdx)} flex items-center justify-center min-h-[50px]`}
                     data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
                   >
                     {showRedHeaders && (
