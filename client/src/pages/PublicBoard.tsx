@@ -187,10 +187,6 @@ export default function PublicBoard() {
                 <div className="w-6 h-6 bg-muted/40 border rounded" />
                 <span>Disabled</span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-destructive border rounded" />
-                <span>Red Headers</span>
-              </div>
             </div>
           </div>
         </div>

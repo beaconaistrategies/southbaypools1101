@@ -8,7 +8,7 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
-### October 26, 2025 - Full Backend Integration Complete
+### October 26, 2025 - Full Backend Integration & UI Refinements
 - **Database Schema**: Implemented PostgreSQL schema with pgEnum for contest_status ("open", "locked") and square_status ("available", "taken", "disabled")
 - **Validation Layer**: Added Zod schemas with array length/value constraints (topAxisNumbers/leftAxisNumbers must be length 10 with values 0-9, redRowsCount 1-6)
 - **API Routes**: Created validated REST endpoints with proper error handling (400 for invalid data, 404 for not found)
@@ -16,6 +16,9 @@ SquareKeeper is a football squares pool management system that enables administr
 - **Strong Typing**: Restored Square[] typing throughout frontend with null-safe optional fields
 - **End-to-End Testing**: Verified complete contest lifecycle (create → shuffle → claim → release → lock)
 - **API Parameter Fix**: Corrected all apiRequest calls to use proper parameter order (method, url, data)
+- **Team Name Display**: Team 1 (topTeam) displays horizontally above grid in large bold font; Team 2 (leftTeam) displays vertically on left side rotated bottom-to-top
+- **Red Header Behavior**: Before shuffling, red header cells show solid red background with no numbers visible; after shuffling, numbers appear and red background is removed
+- **UI Cleanup**: Removed "Red Headers" from legend on public board (shows only Available, Taken, Disabled)
 
 ## User Preferences
 

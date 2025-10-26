@@ -117,66 +117,74 @@ export default function SquareGrid({
 
   return (
     <div className="w-full overflow-x-auto">
-      <div className="inline-block min-w-full">
-        {/* Grid container with 11x11 (1 header row/col + 10 data) */}
-        <div className="grid grid-cols-11 gap-0" style={{ gridTemplateColumns: 'minmax(60px, 80px) repeat(10, minmax(50px, 1fr))' }}>
-          {/* Top-left corner */}
-          <div className="border border-border bg-card flex items-center justify-center min-h-[50px]">
-            <span className="text-xs font-medium text-muted-foreground text-center px-2">
+      <div className="flex gap-4 items-start">
+        {/* Left team name - vertical from bottom to top */}
+        <div className="flex-shrink-0" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+          <span className="text-2xl font-bold tracking-wide">
+            {leftTeam}
+          </span>
+        </div>
+
+        <div className="flex-1">
+          {/* Top team name - horizontal above grid */}
+          <div className="flex items-center justify-center mb-2">
+            <span className="text-2xl font-bold tracking-wide">
               {topTeam}
             </span>
           </div>
-          
-          {/* Top axis numbers */}
-          {topAxisNumbers.map((num, idx) => {
-            const isRed = isRedHeader('col', idx);
-            const showNumber = !isRed || topRandomized;
-            return (
-              <div 
-                key={`top-${idx}`}
-                className={`border border-border flex items-center justify-center min-h-[50px] ${
-                  isRed ? 'bg-destructive text-destructive-foreground' : 'bg-card'
-                }`}
-                data-testid={`header-top-${idx}`}
-              >
-                {showNumber && <span className="text-sm font-mono font-semibold">{num}</span>}
-              </div>
-            );
-          })}
-          
-          {/* Grid rows */}
-          {Array.from({ length: 10 }).map((_, rowIdx) => {
-            const isRed = isRedHeader('row', rowIdx);
-            const showNumber = !isRed || leftRandomized;
-            return (
-              <Fragment key={`row-${rowIdx}`}>
-                {/* Left axis number */}
+
+          {/* Grid container with 11x11 (1 header row/col + 10 data) */}
+          <div className="grid grid-cols-11 gap-0" style={{ gridTemplateColumns: 'minmax(60px, 80px) repeat(10, minmax(50px, 1fr))' }}>
+            {/* Top-left corner - empty */}
+            <div className="border border-border bg-card flex items-center justify-center min-h-[50px]">
+            </div>
+            
+            {/* Top axis numbers */}
+            {topAxisNumbers.map((num, idx) => {
+              const isRed = isRedHeader('col', idx);
+              const showNumber = isRed ? topRandomized : true;
+              return (
                 <div 
+                  key={`top-${idx}`}
                   className={`border border-border flex items-center justify-center min-h-[50px] ${
-                    isRed ? 'bg-destructive text-destructive-foreground' : 'bg-card'
+                    isRed && !topRandomized ? 'bg-destructive text-destructive-foreground' : 'bg-card'
                   }`}
-                  data-testid={`header-left-${rowIdx}`}
+                  data-testid={`header-top-${idx}`}
                 >
-                  {showNumber && <span className="text-sm font-mono font-semibold">{leftAxisNumbers[rowIdx]}</span>}
+                  {showNumber && <span className="text-sm font-mono font-semibold">{num}</span>}
                 </div>
-              
-                {/* Data squares */}
-                {Array.from({ length: 10 }).map((_, colIdx) => {
-                  const square = getSquare(rowIdx, colIdx);
-                  return square ? (
-                    <div key={`square-${rowIdx}-${colIdx}`}>
-                      {renderSquareContent(square)}
-                    </div>
-                  ) : null;
-                })}
-              </Fragment>
-            );
-          })}
-        </div>
-        
-        {/* Left team label (rotated) */}
-        <div className="flex items-center justify-center mt-4">
-          <span className="text-xs font-medium text-muted-foreground">{leftTeam}</span>
+              );
+            })}
+          
+            {/* Grid rows */}
+            {Array.from({ length: 10 }).map((_, rowIdx) => {
+              const isRed = isRedHeader('row', rowIdx);
+              const showNumber = isRed ? leftRandomized : true;
+              return (
+                <Fragment key={`row-${rowIdx}`}>
+                  {/* Left axis number */}
+                  <div 
+                    className={`border border-border flex items-center justify-center min-h-[50px] ${
+                      isRed && !leftRandomized ? 'bg-destructive text-destructive-foreground' : 'bg-card'
+                    }`}
+                    data-testid={`header-left-${rowIdx}`}
+                  >
+                    {showNumber && <span className="text-sm font-mono font-semibold">{leftAxisNumbers[rowIdx]}</span>}
+                  </div>
+                
+                  {/* Data squares */}
+                  {Array.from({ length: 10 }).map((_, colIdx) => {
+                    const square = getSquare(rowIdx, colIdx);
+                    return square ? (
+                      <div key={`square-${rowIdx}-${colIdx}`}>
+                        {renderSquareContent(square)}
+                      </div>
+                    ) : null;
+                  })}
+                </Fragment>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
