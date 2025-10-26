@@ -65,7 +65,7 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
           <h3 className="text-lg font-semibold">Prize Payouts</h3>
           {preset !== "custom" && (
             <p className="text-sm text-muted-foreground mt-1">
-              Synced with {preset === "quarters" ? "Quarters" : "Halves"} preset
+              Synced with {preset === "quarters" ? "Quarters" : "Half and Final"} preset
             </p>
           )}
         </div>
@@ -143,7 +143,7 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
       <div className="mt-4 text-sm text-muted-foreground">
         <p className="font-medium mb-1">Tips:</p>
         <ul className="list-disc list-inside space-y-1 text-xs">
-          <li>Prize labels should match your layer labels (Q1→Q1, H1→H1, etc.)</li>
+          <li>Prize labels should match your layer labels (Q1→Q1, Half→Half, etc.)</li>
           <li>Use the <strong>preset selector</strong> above to automatically sync everything</li>
           <li>Each prize's color on the grid matches its position in this list</li>
           <li>Custom labels like "Q1+2", "Opposite", or "Reverse" are supported for advanced scoring</li>

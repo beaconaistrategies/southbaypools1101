@@ -77,7 +77,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       setPrizes(labels.map(label => ({ label, amount: "" })));
     } else if (preset === "halves") {
       setRedRowsCount(2);
-      const labels = ["H1", "H2"];
+      const labels = ["Half", "Final"];
       setTopLayerLabels(labels);
       setLeftLayerLabels(labels);
       setPrizes(labels.map(label => ({ label, amount: "" })));
@@ -254,7 +254,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="quarters">Quarters (Q1, Q2, Q3, Q4)</SelectItem>
-                <SelectItem value="halves">Halves (H1, H2)</SelectItem>
+                <SelectItem value="halves">Half and Final</SelectItem>
                 <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
