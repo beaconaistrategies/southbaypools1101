@@ -8,6 +8,16 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 26, 2025 - Admin Toolset Enhancement (CSV Export, Clone, Delete, Filtering)
+- **CSV Export**: Export button in Contest Manager generates downloadable CSV with participant data, prize info, winners, and grid numbers
+- **Clone Contest**: Duplicate contest settings with fresh empty squares via clone dialog and POST /api/contests/:id/clone endpoint
+- **Delete Contest**: Delete button with confirmation dialog that removes contest and redirects to admin dashboard
+- **Dashboard Filtering**: Status filters (All/Open/Locked) and search by name/teams with real-time filtering
+- **Sort Ordering**: Toggle between "Upcoming First" (ascending by event date) and "Recent First" (descending)
+- **Copy Public Link**: Copy-to-clipboard button in Board tab for easy public board URL sharing
+- **Print-Friendly Styles**: CSS media queries for clean grid printing with proper page breaks
+- **End-to-End Verified**: Complete admin workflow tested (filter → search → manage → export → clone → delete)
+
 ### October 26, 2025 - Preset-Based Payout Configuration System
 - **Unified Naming**: Added preset selector (Quarters, Half and Final, Custom) that synchronizes layer labels with prize labels to eliminate confusion between duplicate terms
 - **Quarters Preset**: Automatically configures 4 layers with Q1-Q4 labels and matching prize labels
