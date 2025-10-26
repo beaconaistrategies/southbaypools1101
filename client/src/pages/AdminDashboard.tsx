@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   };
 
   const handleManage = (id: string) => {
-    setLocation(`/admin/contest/${id}`);
+    setLocation(`/admin/contest/${id}/edit`);
   };
 
   const handleViewPublic = (id: string) => {

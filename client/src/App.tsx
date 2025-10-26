@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import LoginPage from "@/pages/LoginPage";
 import AdminDashboard from "@/pages/AdminDashboard";
 import NewContest from "@/pages/NewContest";
+import EditContest from "@/pages/EditContest";
 import ContestManager from "@/pages/ContestManager";
 import PublicBoard from "@/pages/PublicBoard";
 import NotFound from "@/pages/not-found";
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/" component={LoginPage} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/contest/new" component={NewContest} />
+      <Route path="/admin/contest/:id/edit" component={EditContest} />
       <Route path="/admin/contest/:id" component={ContestManager} />
       <Route path="/board/:id" component={PublicBoard} />
       <Route component={NotFound} />
