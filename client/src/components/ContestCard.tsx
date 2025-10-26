@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "./StatusBadge";
 import { format } from "date-fns";
-import { Calendar, Users } from "lucide-react";
+import { Calendar, Users, ExternalLink } from "lucide-react";
 
 interface ContestCardProps {
   id: string;
@@ -14,7 +14,6 @@ interface ContestCardProps {
   takenSquares: number;
   totalSquares: number;
   onManage?: (id: string) => void;
-  onViewPublic?: (id: string) => void;
 }
 
 export default function ContestCard({
@@ -26,8 +25,7 @@ export default function ContestCard({
   leftTeam,
   takenSquares,
   totalSquares,
-  onManage,
-  onViewPublic
+  onManage
 }: ContestCardProps) {
   const percentTaken = (takenSquares / totalSquares) * 100;
   
@@ -81,10 +79,18 @@ export default function ContestCard({
           <Button 
             variant="secondary" 
             className="flex-1"
-            onClick={() => onViewPublic?.(id)}
+            asChild
             data-testid="button-view-public"
           >
-            Public Board
+            <a 
+              href={`/board/${id}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              Public Board
+              <ExternalLink className="h-4 w-4" />
+            </a>
           </Button>
         </div>
       </div>

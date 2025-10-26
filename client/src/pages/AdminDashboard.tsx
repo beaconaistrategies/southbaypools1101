@@ -26,10 +26,6 @@ export default function AdminDashboard() {
     setLocation(`/admin/contest/${id}/edit`);
   };
 
-  const handleViewPublic = (id: string) => {
-    setLocation(`/board/${id}`);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <TopNav
@@ -73,7 +69,6 @@ export default function AdminDashboard() {
                 takenSquares={contest.takenSquares}
                 totalSquares={contest.totalSquares}
                 onManage={handleManage}
-                onViewPublic={handleViewPublic}
               />
             ))}
           </div>
