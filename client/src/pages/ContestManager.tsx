@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft, Download, Trash2, Copy, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Copy, Link as LinkIcon, ExternalLink, Zap } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
@@ -265,6 +265,29 @@ export default function ContestManager() {
     }
   };
 
+  const testWebhookMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/contests/${contestId}/test-webhook`, {});
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Webhook Test Successful",
+        description: "Test notification sent successfully to your webhook URL.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Webhook Test Failed",
+        description: error?.message || "Failed to send test webhook. Check your URL and try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleTestWebhook = () => {
+    testWebhookMutation.mutate();
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -358,6 +381,7 @@ export default function ContestManager() {
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="squares">Squares</TabsTrigger>
             <TabsTrigger value="winners">Winners</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="board" className="space-y-6">
@@ -552,6 +576,66 @@ export default function ContestManager() {
               onUpdate={handleUpdateWinners}
               readOnly={false}
             />
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Webhook Integration</h3>
+              
+              {contest.webhookUrl ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Webhook URL</Label>
+                    <div className="mt-1 p-3 bg-muted rounded-md font-mono text-sm break-all">
+                      {contest.webhookUrl}
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleTestWebhook}
+                      disabled={testWebhookMutation.isPending}
+                      data-testid="button-test-webhook"
+                    >
+                      <Zap className="h-4 w-4 mr-2" />
+                      {testWebhookMutation.isPending ? "Sending..." : "Test Webhook"}
+                    </Button>
+                  </div>
+
+                  <div className="mt-4 p-4 bg-muted/50 rounded-md">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      <strong>Test Payload Preview:</strong>
+                    </p>
+                    <pre className="text-xs bg-background p-3 rounded border overflow-x-auto">
+{JSON.stringify({
+  event: "test_webhook",
+  timestamp: new Date().toISOString(),
+  data: {
+    contestName: contest.name,
+    contestId: contest.id,
+    entryName: "Test Entry",
+    holderEmail: "test@example.com",
+    holderName: "Test User",
+    squareNumber: 1,
+    topTeam: contest.topTeam,
+    leftTeam: contest.leftTeam,
+    eventDate: contest.eventDate.toISOString()
+  }
+}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">
+                    No webhook URL configured for this contest.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    To add webhook notifications, edit the contest and provide a webhook URL.
+                  </p>
+                </div>
+              )}
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
