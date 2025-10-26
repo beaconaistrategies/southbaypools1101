@@ -8,6 +8,16 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 26, 2025 - Email Notifications & User Dashboard
+- **Webhook Integration**: Optional n8n webhook URL field in contest form triggers notifications when squares are claimed
+- **Notification Payload**: Sends contest details, participant info (name, email, entry name), square number, and event details
+- **Fire-and-Forget**: Webhook calls don't block square claims; failures logged but don't affect user experience
+- **My Contests Page**: New `/my-contests` route where participants can look up all their participations by email
+- **Email Lookup**: Case-insensitive search returns all contests where user has claimed squares
+- **Participation Details**: Shows contest name, teams, event date, entry name, square number with link to view board
+- **Easy Access**: "My Contests" button added to public board header for quick navigation
+- **End-to-End Verified**: Complete workflow tested (webhook setup → square claim → email lookup → view board)
+
 ### October 26, 2025 - Admin Toolset Enhancement (CSV Export, Clone, Delete, Filtering)
 - **CSV Export**: Export button in Contest Manager generates downloadable CSV with participant data, prize info, winners, and grid numbers
 - **Clone Contest**: Duplicate contest settings with fresh empty squares via clone dialog and POST /api/contests/:id/clone endpoint
