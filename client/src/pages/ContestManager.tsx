@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Shuffle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { exportContestToCSV } from "@/lib/csvExport";
 import type { Contest, Square, Prize, Winner } from "@shared/schema";
 
 export default function ContestManager() {
@@ -179,6 +180,16 @@ export default function ContestManager() {
     );
   };
 
+  const handleExportCSV = () => {
+    if (contest) {
+      exportContestToCSV(contest, squares);
+      toast({
+        title: "CSV Exported",
+        description: "Contest data has been downloaded.",
+      });
+    }
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -228,13 +239,24 @@ export default function ContestManager() {
             Back to Dashboard
           </Button>
           <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="flex-1">
               <h2 className="text-3xl font-semibold">{contest.name}</h2>
               <p className="text-muted-foreground mt-1">
                 {contest.topTeam} vs {contest.leftTeam}
               </p>
             </div>
-            <StatusBadge status={contest.status as "open" | "locked"} />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCSV}
+                data-testid="button-export-csv"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <StatusBadge status={contest.status as "open" | "locked"} />
+            </div>
           </div>
         </div>
 
