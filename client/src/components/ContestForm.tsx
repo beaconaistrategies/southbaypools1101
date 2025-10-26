@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,13 +15,12 @@ interface ContestFormProps {
     topTeam: string;
     leftTeam: string;
     notes: string;
-    topAxisNumbers: number[];
-    leftAxisNumbers: number[];
+    topAxisNumbers: number[][];
+    leftAxisNumbers: number[][];
+    topLayerLabels?: string[];
+    leftLayerLabels?: string[];
     redRowsCount: number;
-    redColsCount: number;
-    redRows: number[];
-    redCols: number[];
-    isOpen: boolean;
+    status: string;
     availableSquares: number[];
   };
   onSubmit: (data: any) => void;
@@ -34,20 +33,59 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [topTeam, setTopTeam] = useState(initialData?.topTeam || "");
   const [leftTeam, setLeftTeam] = useState(initialData?.leftTeam || "");
   const [notes, setNotes] = useState(initialData?.notes || "");
-  const [topAxisNumbers, setTopAxisNumbers] = useState<number[]>(
-    initialData?.topAxisNumbers || [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-  );
-  const [leftAxisNumbers, setLeftAxisNumbers] = useState<number[]>(
-    initialData?.leftAxisNumbers || [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-  );
   const [redRowsCount, setRedRowsCount] = useState(initialData?.redRowsCount || 2);
-  const [redColsCount, setRedColsCount] = useState(initialData?.redColsCount || 2);
-  const [redRows, setRedRows] = useState<number[]>(initialData?.redRows || [0, 1]);
-  const [redCols, setRedCols] = useState<number[]>(initialData?.redCols || [0, 1]);
-  const [isOpen, setIsOpen] = useState(initialData?.isOpen ?? true);
+  
+  // Initialize nested arrays based on redRowsCount
+  const generateDefaultLayers = (count: number): number[][] => {
+    return Array.from({ length: count }, () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  };
+  
+  const [topAxisNumbers, setTopAxisNumbers] = useState<number[][]>(
+    initialData?.topAxisNumbers || generateDefaultLayers(redRowsCount)
+  );
+  const [leftAxisNumbers, setLeftAxisNumbers] = useState<number[][]>(
+    initialData?.leftAxisNumbers || generateDefaultLayers(redRowsCount)
+  );
+  const [topLayerLabels, setTopLayerLabels] = useState<string[]>(
+    initialData?.topLayerLabels || []
+  );
+  const [leftLayerLabels, setLeftLayerLabels] = useState<string[]>(
+    initialData?.leftLayerLabels || []
+  );
+  const [isOpen, setIsOpen] = useState(initialData?.status === "open" || initialData?.status === undefined);
   const [availableSquares, setAvailableSquares] = useState<number[]>(
     initialData?.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1)
   );
+
+  // When redRowsCount changes, update the nested arrays
+  useEffect(() => {
+    const currentLayers = topAxisNumbers.length;
+    if (currentLayers !== redRowsCount) {
+      // Adjust top axis layers
+      const newTopLayers = [...topAxisNumbers];
+      if (redRowsCount > currentLayers) {
+        // Add new layers
+        for (let i = currentLayers; i < redRowsCount; i++) {
+          newTopLayers.push([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        }
+      } else {
+        // Remove excess layers
+        newTopLayers.splice(redRowsCount);
+      }
+      setTopAxisNumbers(newTopLayers);
+
+      // Adjust left axis layers
+      const newLeftLayers = [...leftAxisNumbers];
+      if (redRowsCount > currentLayers) {
+        for (let i = currentLayers; i < redRowsCount; i++) {
+          newLeftLayers.push([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        }
+      } else {
+        newLeftLayers.splice(redRowsCount);
+      }
+      setLeftAxisNumbers(newLeftLayers);
+    }
+  }, [redRowsCount]);
 
   const shuffleArray = (arr: number[]) => {
     const newArr = [...arr];
@@ -58,12 +96,26 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
     return newArr;
   };
 
-  const handleShuffleTop = () => {
-    setTopAxisNumbers(shuffleArray(topAxisNumbers));
+  const handleShuffleTopLayer = (layerIdx: number) => {
+    const newLayers = [...topAxisNumbers];
+    newLayers[layerIdx] = shuffleArray(newLayers[layerIdx]);
+    setTopAxisNumbers(newLayers);
   };
 
-  const handleShuffleLeft = () => {
-    setLeftAxisNumbers(shuffleArray(leftAxisNumbers));
+  const handleShuffleLeftLayer = (layerIdx: number) => {
+    const newLayers = [...leftAxisNumbers];
+    newLayers[layerIdx] = shuffleArray(newLayers[layerIdx]);
+    setLeftAxisNumbers(newLayers);
+  };
+
+  const handleShuffleAllTop = () => {
+    const newLayers = topAxisNumbers.map(layer => shuffleArray(layer));
+    setTopAxisNumbers(newLayers);
+  };
+
+  const handleShuffleAllLeft = () => {
+    const newLayers = leftAxisNumbers.map(layer => shuffleArray(layer));
+    setLeftAxisNumbers(newLayers);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,11 +128,10 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       notes,
       topAxisNumbers,
       leftAxisNumbers,
+      topLayerLabels: topLayerLabels.filter(l => l.trim()),
+      leftLayerLabels: leftLayerLabels.filter(l => l.trim()),
       redRowsCount,
-      redColsCount,
-      redRows,
-      redCols,
-      isOpen,
+      status: isOpen ? "open" : "locked",
       availableSquares
     });
   };
@@ -163,100 +214,154 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       </Card>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Axis Numbers (0-9)</h3>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Top Axis</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleShuffleTop}
-                data-testid="button-shuffle-top"
-              >
-                <Shuffle className="h-4 w-4 mr-2" />
-                Randomize
-              </Button>
-            </div>
-            <div className="grid grid-cols-10 gap-2">
-              {topAxisNumbers.map((num, idx) => (
-                <Input
-                  key={idx}
-                  value={num}
-                  onChange={(e) => {
-                    const newNums = [...topAxisNumbers];
-                    newNums[idx] = parseInt(e.target.value) || 0;
-                    setTopAxisNumbers(newNums);
-                  }}
-                  className="text-center font-mono"
-                  type="number"
-                  min="0"
-                  max="9"
-                  data-testid={`input-top-axis-${idx}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Left Axis</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleShuffleLeft}
-                data-testid="button-shuffle-left"
-              >
-                <Shuffle className="h-4 w-4 mr-2" />
-                Randomize
-              </Button>
-            </div>
-            <div className="grid grid-cols-10 gap-2">
-              {leftAxisNumbers.map((num, idx) => (
-                <Input
-                  key={idx}
-                  value={num}
-                  onChange={(e) => {
-                    const newNums = [...leftAxisNumbers];
-                    newNums[idx] = parseInt(e.target.value) || 0;
-                    setLeftAxisNumbers(newNums);
-                  }}
-                  className="text-center font-mono"
-                  type="number"
-                  min="0"
-                  max="9"
-                  data-testid={`input-left-axis-${idx}`}
-                />
-              ))}
-            </div>
-          </div>
+        <h3 className="text-lg font-semibold mb-4">Red Headers</h3>
+        <div className="space-y-2">
+          <Label htmlFor="redRowsCount">Number of Red Headers (1-6)</Label>
+          <Input
+            id="redRowsCount"
+            type="number"
+            min="1"
+            max="6"
+            value={redRowsCount}
+            onChange={(e) => {
+              const count = Math.min(6, Math.max(1, parseInt(e.target.value) || 1));
+              setRedRowsCount(count);
+            }}
+            data-testid="input-red-rows-count"
+          />
+          <p className="text-sm text-muted-foreground">
+            Determines how many sets of 0-9 numbers appear on each axis (for Q1, Q2, Q3, Q4, etc.)
+          </p>
         </div>
       </Card>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Red Headers</h3>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="redRowsCount">Number of Red Header Rows (1-6)</Label>
-            <Input
-              id="redRowsCount"
-              type="number"
-              min="1"
-              max="6"
-              value={redRowsCount}
-              onChange={(e) => {
-                const count = parseInt(e.target.value) || 1;
-                setRedRowsCount(count);
-                setRedRows(Array.from({ length: count }, (_, i) => i));
-              }}
-              data-testid="input-red-rows-count"
-            />
-            <p className="text-sm text-muted-foreground">
-              Selects rows 1-{redRowsCount} as red headers
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Top Axis Number Layers</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleShuffleAllTop}
+            data-testid="button-shuffle-all-top"
+          >
+            <Shuffle className="h-4 w-4 mr-2" />
+            Shuffle All
+          </Button>
+        </div>
+        
+        <div className="space-y-6">
+          {topAxisNumbers.map((layer, layerIdx) => (
+            <div key={layerIdx} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Layer {layerIdx + 1} (e.g., Q{layerIdx + 1})</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleShuffleTopLayer(layerIdx)}
+                  data-testid={`button-shuffle-top-layer-${layerIdx}`}
+                >
+                  <Shuffle className="h-3 w-3 mr-1" />
+                  Shuffle
+                </Button>
+              </div>
+              <Input
+                value={topLayerLabels[layerIdx] || ""}
+                onChange={(e) => {
+                  const newLabels = [...topLayerLabels];
+                  newLabels[layerIdx] = e.target.value;
+                  setTopLayerLabels(newLabels);
+                }}
+                placeholder={`Layer ${layerIdx + 1} label (optional)`}
+                className="mb-2"
+                data-testid={`input-top-layer-label-${layerIdx}`}
+              />
+              <div className="grid grid-cols-10 gap-2">
+                {layer.map((num, numIdx) => (
+                  <Input
+                    key={numIdx}
+                    value={num}
+                    onChange={(e) => {
+                      const newLayers = [...topAxisNumbers];
+                      newLayers[layerIdx][numIdx] = Math.min(9, Math.max(0, parseInt(e.target.value) || 0));
+                      setTopAxisNumbers(newLayers);
+                    }}
+                    className="text-center font-mono"
+                    type="number"
+                    min="0"
+                    max="9"
+                    data-testid={`input-top-layer${layerIdx}-num${numIdx}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Left Axis Number Layers</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleShuffleAllLeft}
+            data-testid="button-shuffle-all-left"
+          >
+            <Shuffle className="h-4 w-4 mr-2" />
+            Shuffle All
+          </Button>
+        </div>
+        
+        <div className="space-y-6">
+          {leftAxisNumbers.map((layer, layerIdx) => (
+            <div key={layerIdx} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Layer {layerIdx + 1} (e.g., Q{layerIdx + 1})</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleShuffleLeftLayer(layerIdx)}
+                  data-testid={`button-shuffle-left-layer-${layerIdx}`}
+                >
+                  <Shuffle className="h-3 w-3 mr-1" />
+                  Shuffle
+                </Button>
+              </div>
+              <Input
+                value={leftLayerLabels[layerIdx] || ""}
+                onChange={(e) => {
+                  const newLabels = [...leftLayerLabels];
+                  newLabels[layerIdx] = e.target.value;
+                  setLeftLayerLabels(newLabels);
+                }}
+                placeholder={`Layer ${layerIdx + 1} label (optional)`}
+                className="mb-2"
+                data-testid={`input-left-layer-label-${layerIdx}`}
+              />
+              <div className="grid grid-cols-10 gap-2">
+                {layer.map((num, numIdx) => (
+                  <Input
+                    key={numIdx}
+                    value={num}
+                    onChange={(e) => {
+                      const newLayers = [...leftAxisNumbers];
+                      newLayers[layerIdx][numIdx] = Math.min(9, Math.max(0, parseInt(e.target.value) || 0));
+                      setLeftAxisNumbers(newLayers);
+                    }}
+                    className="text-center font-mono"
+                    type="number"
+                    min="0"
+                    max="9"
+                    data-testid={`input-left-layer${layerIdx}-num${numIdx}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </Card>
 

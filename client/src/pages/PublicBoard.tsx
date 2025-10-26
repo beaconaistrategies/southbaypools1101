@@ -116,8 +116,6 @@ export default function PublicBoard() {
 
   const takenCount = squares.filter(s => s.status === "taken").length;
   const availableCount = squares.filter(s => s.status === "available").length;
-  const redRows = Array.from({ length: contest.redRowsCount }, (_, i) => i);
-  const redCols: number[] = [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -164,8 +162,8 @@ export default function PublicBoard() {
               leftTeam={contest.leftTeam}
               topAxisNumbers={contest.topAxisNumbers}
               leftAxisNumbers={contest.leftAxisNumbers}
-              redRows={redRows}
-              redCols={redCols}
+              topLayerLabels={contest.topLayerLabels || undefined}
+              leftLayerLabels={contest.leftLayerLabels || undefined}
               squares={squares}
               onSquareClick={handleSquareClick}
               readOnly={contest.status === "locked"}

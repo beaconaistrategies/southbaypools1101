@@ -14,10 +14,10 @@ interface Square {
 interface SquareGridProps {
   topTeam: string;
   leftTeam: string;
-  topAxisNumbers: number[];
-  leftAxisNumbers: number[];
-  redRows: number[];
-  redCols: number[];
+  topAxisNumbers: number[][];
+  leftAxisNumbers: number[][];
+  topLayerLabels?: string[];
+  leftLayerLabels?: string[];
   squares: Square[];
   onSquareClick?: (square: Square) => void;
   readOnly?: boolean;
@@ -28,29 +28,19 @@ export default function SquareGrid({
   leftTeam,
   topAxisNumbers,
   leftAxisNumbers,
-  redRows,
-  redCols,
+  topLayerLabels,
+  leftLayerLabels,
   squares,
   onSquareClick,
   readOnly = false
 }: SquareGridProps) {
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
 
+  const redHeadersCount = topAxisNumbers.length;
+
   const getSquare = (row: number, col: number): Square | undefined => {
     return squares.find(s => s.row === row && s.col === col);
   };
-
-  const isRedHeader = (type: 'row' | 'col', index: number) => {
-    return type === 'row' ? redRows.includes(index) : redCols.includes(index);
-  };
-
-  const isRandomized = (numbers: number[]) => {
-    const defaultOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    return !numbers.every((num, idx) => num === defaultOrder[idx]);
-  };
-
-  const topRandomized = isRandomized(topAxisNumbers);
-  const leftRandomized = isRandomized(leftAxisNumbers);
 
   const handleSquareClick = (square: Square) => {
     if (readOnly || square.status === "disabled") return;
@@ -115,6 +105,9 @@ export default function SquareGrid({
     return content;
   };
 
+  // Calculate total columns: redHeadersCount (left labels) + 10 (data columns)
+  const totalCols = redHeadersCount + 10;
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="flex gap-4 items-start">
@@ -133,57 +126,71 @@ export default function SquareGrid({
             </span>
           </div>
 
-          {/* Grid container with 11x11 (1 header row/col + 10 data) */}
-          <div className="grid grid-cols-11 gap-0" style={{ gridTemplateColumns: 'minmax(60px, 80px) repeat(10, minmax(50px, 1fr))' }}>
-            {/* Top-left corner - empty */}
-            <div className="border border-border bg-card flex items-center justify-center min-h-[50px]">
-            </div>
-            
-            {/* Top axis numbers */}
-            {topAxisNumbers.map((num, idx) => {
-              const isRed = isRedHeader('col', idx);
-              const showNumber = isRed ? topRandomized : true;
-              return (
-                <div 
-                  key={`top-${idx}`}
-                  className={`border border-border flex items-center justify-center min-h-[50px] ${
-                    isRed && !topRandomized ? 'bg-destructive text-destructive-foreground' : 'bg-card'
-                  }`}
-                  data-testid={`header-top-${idx}`}
-                >
-                  {showNumber && <span className="text-sm font-mono font-semibold">{num}</span>}
-                </div>
-              );
-            })}
-          
-            {/* Grid rows */}
-            {Array.from({ length: 10 }).map((_, rowIdx) => {
-              const isRed = isRedHeader('row', rowIdx);
-              const showNumber = isRed ? leftRandomized : true;
-              return (
-                <Fragment key={`row-${rowIdx}`}>
-                  {/* Left axis number */}
+          {/* Grid container - dynamic columns based on redHeadersCount */}
+          <div 
+            className="grid gap-0" 
+            style={{ 
+              gridTemplateColumns: `repeat(${redHeadersCount}, minmax(60px, 80px)) repeat(10, minmax(50px, 1fr))` 
+            }}
+          >
+            {/* Top-left corner: redHeadersCount x redHeadersCount pink area */}
+            {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
+              <Fragment key={`corner-row-${rowIdx}`}>
+                {Array.from({ length: redHeadersCount }).map((_, colIdx) => (
                   <div 
-                    className={`border border-border flex items-center justify-center min-h-[50px] ${
-                      isRed && !leftRandomized ? 'bg-destructive text-destructive-foreground' : 'bg-card'
-                    }`}
-                    data-testid={`header-left-${rowIdx}`}
+                    key={`corner-${rowIdx}-${colIdx}`}
+                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                    data-testid={`corner-${rowIdx}-${colIdx}`}
                   >
-                    {showNumber && <span className="text-sm font-mono font-semibold">{leftAxisNumbers[rowIdx]}</span>}
+                    {/* Show layer labels in corner cells if they intersect */}
+                    {rowIdx === colIdx && (
+                      <span className="text-xs font-mono font-semibold">
+                        {topLayerLabels?.[rowIdx] || leftLayerLabels?.[colIdx] || `L${rowIdx + 1}`}
+                      </span>
+                    )}
                   </div>
+                ))}
                 
-                  {/* Data squares */}
-                  {Array.from({ length: 10 }).map((_, colIdx) => {
-                    const square = getSquare(rowIdx, colIdx);
-                    return square ? (
-                      <div key={`square-${rowIdx}-${colIdx}`}>
-                        {renderSquareContent(square)}
-                      </div>
-                    ) : null;
-                  })}
-                </Fragment>
-              );
-            })}
+                {/* Top header numbers for this layer */}
+                {topAxisNumbers[rowIdx].map((num, colIdx) => (
+                  <div 
+                    key={`top-header-${rowIdx}-${colIdx}`}
+                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                    data-testid={`header-top-layer${rowIdx}-col${colIdx}`}
+                  >
+                    <span className="text-sm font-mono font-semibold">{num}</span>
+                  </div>
+                ))}
+              </Fragment>
+            ))}
+
+            {/* Grid rows: 10 data rows */}
+            {Array.from({ length: 10 }).map((_, rowIdx) => (
+              <Fragment key={`row-${rowIdx}`}>
+                {/* Left header numbers for this row (one column per layer) */}
+                {Array.from({ length: redHeadersCount }).map((_, layerIdx) => (
+                  <div 
+                    key={`left-header-${layerIdx}-${rowIdx}`}
+                    className="border border-border bg-destructive/20 flex items-center justify-center min-h-[50px]"
+                    data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
+                  >
+                    <span className="text-sm font-mono font-semibold">
+                      {leftAxisNumbers[layerIdx][rowIdx]}
+                    </span>
+                  </div>
+                ))}
+              
+                {/* Data squares: 10 columns */}
+                {Array.from({ length: 10 }).map((_, colIdx) => {
+                  const square = getSquare(rowIdx, colIdx);
+                  return square ? (
+                    <div key={`square-${rowIdx}-${colIdx}`}>
+                      {renderSquareContent(square)}
+                    </div>
+                  ) : null;
+                })}
+              </Fragment>
+            ))}
           </div>
         </div>
       </div>

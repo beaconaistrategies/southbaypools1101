@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -28,8 +28,10 @@ export const contests = pgTable("contests", {
   topTeam: text("top_team").notNull(),
   leftTeam: text("left_team").notNull(),
   notes: text("notes"),
-  topAxisNumbers: integer("top_axis_numbers").array().notNull(),
-  leftAxisNumbers: integer("left_axis_numbers").array().notNull(),
+  topAxisNumbers: jsonb("top_axis_numbers").notNull().$type<number[][]>(),
+  leftAxisNumbers: jsonb("left_axis_numbers").notNull().$type<number[][]>(),
+  topLayerLabels: jsonb("top_layer_labels").$type<string[]>(),
+  leftLayerLabels: jsonb("left_layer_labels").$type<string[]>(),
   redRowsCount: integer("red_rows_count").notNull().default(2),
   status: contestStatusEnum("status").notNull().default("open"),
   q1Winner: text("q1_winner"),
@@ -39,17 +41,27 @@ export const contests = pgTable("contests", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-export const insertContestSchema = createInsertSchema(contests).omit({
+const baseContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
 }).extend({
-  topAxisNumbers: z.array(z.number().min(0).max(9)).length(10),
-  leftAxisNumbers: z.array(z.number().min(0).max(9)).length(10),
+  topAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
+  leftAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
+  topLayerLabels: z.array(z.string()).optional(),
+  leftLayerLabels: z.array(z.string()).optional(),
   redRowsCount: z.number().min(1).max(6),
   status: z.enum(["open", "locked"]).optional(),
 });
 
-export const updateContestSchema = insertContestSchema.partial();
+export const insertContestSchema = baseContestSchema.refine(
+  (data) => data.topAxisNumbers.length === data.redRowsCount,
+  { message: "topAxisNumbers length must match redRowsCount" }
+).refine(
+  (data) => data.leftAxisNumbers.length === data.redRowsCount,
+  { message: "leftAxisNumbers length must match redRowsCount" }
+);
+
+export const updateContestSchema = baseContestSchema.partial();
 
 export type InsertContest = z.infer<typeof insertContestSchema>;
 export type UpdateContest = z.infer<typeof updateContestSchema>;

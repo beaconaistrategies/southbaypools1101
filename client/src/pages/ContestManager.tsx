@@ -97,16 +97,20 @@ export default function ContestManager() {
 
     if (!contest) return;
 
+    // Shuffle each layer independently for both axes
+    const shuffledTopLayers = contest.topAxisNumbers.map(layer => shuffle([...layer]));
+    const shuffledLeftLayers = contest.leftAxisNumbers.map(layer => shuffle([...layer]));
+
     updateContestMutation.mutate(
       {
-        topAxisNumbers: shuffle([...contest.topAxisNumbers]),
-        leftAxisNumbers: shuffle([...contest.leftAxisNumbers]),
+        topAxisNumbers: shuffledTopLayers,
+        leftAxisNumbers: shuffledLeftLayers,
       },
       {
         onSuccess: () => {
           toast({
             title: "Axis Numbers Shuffled",
-            description: "The top and left axis numbers have been randomized.",
+            description: "All axis number layers have been randomized.",
           });
         },
       }
@@ -180,9 +184,6 @@ export default function ContestManager() {
 
   const takenCount = squares.filter(s => s.status === "taken").length;
   const availableCount = squares.filter(s => s.status === "available").length;
-  
-  const redRows = Array.from({ length: contest.redRowsCount }, (_, i) => i);
-  const redCols: number[] = [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -267,8 +268,8 @@ export default function ContestManager() {
                 leftTeam={contest.leftTeam}
                 topAxisNumbers={contest.topAxisNumbers}
                 leftAxisNumbers={contest.leftAxisNumbers}
-                redRows={redRows}
-                redCols={redCols}
+                topLayerLabels={contest.topLayerLabels || undefined}
+                leftLayerLabels={contest.leftLayerLabels || undefined}
                 squares={squares}
                 readOnly={true}
               />
