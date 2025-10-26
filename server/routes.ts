@@ -141,10 +141,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         leftAxisNumbers: originalContest.leftAxisNumbers,
         topLayerLabels: originalContest.topLayerLabels,
         leftLayerLabels: originalContest.leftLayerLabels,
-        redHeadersCount: originalContest.redHeadersCount,
         showRedHeaders: false,
         prizes: originalContest.prizes,
         winners: [],
+        webhookUrl: originalContest.webhookUrl,
       });
 
       const clonedContest = await storage.createContest(clonedContestData);

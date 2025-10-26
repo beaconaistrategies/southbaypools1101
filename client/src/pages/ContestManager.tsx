@@ -225,7 +225,8 @@ export default function ContestManager() {
 
   const cloneContestMutation = useMutation({
     mutationFn: async (data: { name: string; eventDate: string }) => {
-      return await apiRequest("POST", `/api/contests/${contestId}/clone`, data);
+      const response = await apiRequest("POST", `/api/contests/${contestId}/clone`, data);
+      return response.json();
     },
     onSuccess: (clonedContest: Contest) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
