@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Unlock, Shuffle } from "lucide-react";
+import { Lock, Unlock, Shuffle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contest, Square } from "@shared/schema";
@@ -111,6 +111,22 @@ export default function ContestManager() {
           toast({
             title: "Axis Numbers Shuffled",
             description: "All axis number layers have been randomized.",
+          });
+        },
+      }
+    );
+  };
+
+  const toggleRedHeaders = () => {
+    updateContestMutation.mutate(
+      { showRedHeaders: !contest?.showRedHeaders },
+      {
+        onSuccess: () => {
+          toast({
+            title: contest?.showRedHeaders ? "Red Headers Hidden" : "Red Headers Revealed",
+            description: contest?.showRedHeaders
+              ? "The axis numbers are now hidden from the grid."
+              : "The axis numbers are now visible on the grid.",
           });
         },
       }
@@ -247,6 +263,24 @@ export default function ContestManager() {
                 <Shuffle className="h-4 w-4 mr-2" />
                 Shuffle Axis Numbers
               </Button>
+              
+              <Button
+                variant={contest.showRedHeaders ? "default" : "outline"}
+                onClick={toggleRedHeaders}
+                data-testid="button-toggle-red-headers"
+              >
+                {contest.showRedHeaders ? (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Hide Numbers
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Reveal Numbers
+                  </>
+                )}
+              </Button>
             </div>
 
             <div className="bg-card border rounded-lg p-6">
@@ -270,6 +304,7 @@ export default function ContestManager() {
                 leftAxisNumbers={contest.leftAxisNumbers}
                 topLayerLabels={contest.topLayerLabels || undefined}
                 leftLayerLabels={contest.leftLayerLabels || undefined}
+                showRedHeaders={contest.showRedHeaders}
                 squares={squares}
                 readOnly={true}
               />

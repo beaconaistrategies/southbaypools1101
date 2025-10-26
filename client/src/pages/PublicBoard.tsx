@@ -164,6 +164,7 @@ export default function PublicBoard() {
               leftAxisNumbers={contest.leftAxisNumbers}
               topLayerLabels={contest.topLayerLabels || undefined}
               leftLayerLabels={contest.leftLayerLabels || undefined}
+              showRedHeaders={contest.showRedHeaders}
               squares={squares}
               onSquareClick={handleSquareClick}
               readOnly={contest.status === "locked"}
