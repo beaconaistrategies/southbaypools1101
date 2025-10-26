@@ -5,10 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shuffle } from "lucide-react";
 import SquareSelector from "./SquareSelector";
 import PrizesEditor from "./PrizesEditor";
 import type { Prize } from "@shared/schema";
+
+type PayoutPreset = "quarters" | "halves" | "custom";
 
 interface ContestFormProps {
   initialData?: {
@@ -60,6 +63,27 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
     initialData?.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1)
   );
   const [prizes, setPrizes] = useState<Prize[]>(initialData?.prizes || []);
+  const [payoutPreset, setPayoutPreset] = useState<PayoutPreset>("custom");
+
+  // Apply preset configuration
+  const applyPreset = (preset: PayoutPreset) => {
+    setPayoutPreset(preset);
+    
+    if (preset === "quarters") {
+      setRedRowsCount(4);
+      const labels = ["Q1", "Q2", "Q3", "Q4"];
+      setTopLayerLabels(labels);
+      setLeftLayerLabels(labels);
+      setPrizes(labels.map(label => ({ label, amount: "" })));
+    } else if (preset === "halves") {
+      setRedRowsCount(2);
+      const labels = ["H1", "H2"];
+      setTopLayerLabels(labels);
+      setLeftLayerLabels(labels);
+      setPrizes(labels.map(label => ({ label, amount: "" })));
+    }
+    // "custom" preset doesn't force any changes
+  };
 
   // When redRowsCount changes, update the nested arrays
   useEffect(() => {
@@ -219,24 +243,48 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       </Card>
 
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Red Headers</h3>
-        <div className="space-y-2">
-          <Label htmlFor="redRowsCount">Number of Red Headers (1-6)</Label>
-          <Input
-            id="redRowsCount"
-            type="number"
-            min="1"
-            max="6"
-            value={redRowsCount}
-            onChange={(e) => {
-              const count = Math.min(6, Math.max(1, parseInt(e.target.value) || 1));
-              setRedRowsCount(count);
-            }}
-            data-testid="input-red-rows-count"
-          />
-          <p className="text-sm text-muted-foreground">
-            Determines how many sets of 0-9 numbers appear on each axis (for Q1, Q2, Q3, Q4, etc.)
-          </p>
+        <h3 className="text-lg font-semibold mb-4">Payout Configuration</h3>
+        
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="payoutPreset">Payout Preset</Label>
+            <Select value={payoutPreset} onValueChange={(value) => applyPreset(value as PayoutPreset)}>
+              <SelectTrigger id="payoutPreset" data-testid="select-payout-preset">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="quarters">Quarters (Q1, Q2, Q3, Q4)</SelectItem>
+                <SelectItem value="halves">Halves (H1, H2)</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Choose a preset to automatically sync layer labels and prize labels. Select "Custom" for full control.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="redRowsCount">Number of Layers {payoutPreset !== "custom" && "(Set by preset)"}</Label>
+            <Input
+              id="redRowsCount"
+              type="number"
+              min="1"
+              max="6"
+              value={redRowsCount}
+              onChange={(e) => {
+                const count = Math.min(6, Math.max(1, parseInt(e.target.value) || 1));
+                setRedRowsCount(count);
+                if (payoutPreset !== "custom") {
+                  setPayoutPreset("custom");
+                }
+              }}
+              disabled={payoutPreset !== "custom"}
+              data-testid="input-red-rows-count"
+            />
+            <p className="text-sm text-muted-foreground">
+              Determines how many payout periods (layers) to track. Each layer gets its own set of 0-9 numbers.
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -277,10 +325,14 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
                   const newLabels = [...topLayerLabels];
                   newLabels[layerIdx] = e.target.value;
                   setTopLayerLabels(newLabels);
+                  if (payoutPreset !== "custom") {
+                    setPayoutPreset("custom");
+                  }
                 }}
-                placeholder={`Layer ${layerIdx + 1} label (optional)`}
+                placeholder={`Layer ${layerIdx + 1} label (e.g., Q${layerIdx + 1})`}
                 className="mb-2"
                 data-testid={`input-top-layer-label-${layerIdx}`}
+                disabled={payoutPreset !== "custom"}
               />
               <div className="grid grid-cols-10 gap-2">
                 {layer.map((num, numIdx) => (
@@ -342,10 +394,14 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
                   const newLabels = [...leftLayerLabels];
                   newLabels[layerIdx] = e.target.value;
                   setLeftLayerLabels(newLabels);
+                  if (payoutPreset !== "custom") {
+                    setPayoutPreset("custom");
+                  }
                 }}
-                placeholder={`Layer ${layerIdx + 1} label (optional)`}
+                placeholder={`Layer ${layerIdx + 1} label (e.g., Q${layerIdx + 1})`}
                 className="mb-2"
                 data-testid={`input-left-layer-label-${layerIdx}`}
+                disabled={payoutPreset !== "custom"}
               />
               <div className="grid grid-cols-10 gap-2">
                 {layer.map((num, numIdx) => (
@@ -380,7 +436,15 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
       <PrizesEditor
         prizes={prizes}
-        onUpdate={setPrizes}
+        onUpdate={(newPrizes, labelsChanged = false) => {
+          setPrizes(newPrizes);
+          // Only switch to custom if labels/structure changed, not just amounts
+          if (labelsChanged && payoutPreset !== "custom") {
+            setPayoutPreset("custom");
+          }
+        }}
+        preset={payoutPreset}
+        layerCount={redRowsCount}
       />
 
       <Card className="p-6">

@@ -1,17 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Plus, Trash2, AlertCircle } from "lucide-react";
 import type { Prize } from "@shared/schema";
 
 interface PrizesEditorProps {
   prizes: Prize[];
-  onUpdate: (prizes: Prize[]) => void;
+  onUpdate: (prizes: Prize[], labelsChanged?: boolean) => void;
   readOnly?: boolean;
+  preset?: "quarters" | "halves" | "custom";
+  layerCount?: number;
 }
 
-export default function PrizesEditor({ prizes, onUpdate, readOnly = false }: PrizesEditorProps) {
+export default function PrizesEditor({ prizes, onUpdate, readOnly = false, preset = "custom", layerCount = 4 }: PrizesEditorProps) {
   const [localPrizes, setLocalPrizes] = useState<Prize[]>(prizes.length > 0 ? prizes : [
     { label: "Q1", amount: "" },
     { label: "Q2", amount: "" },
@@ -19,36 +22,53 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false }: Pri
     { label: "Q4", amount: "" },
   ]);
 
+  // Sync local prizes when external prizes change (e.g., from preset)
+  useEffect(() => {
+    if (prizes.length > 0) {
+      setLocalPrizes(prizes);
+    }
+  }, [prizes]);
+
+  // Check if prize count matches layer count
+  const countMismatch = localPrizes.length !== layerCount;
+
   const handleLabelChange = (index: number, value: string) => {
     const updated = [...localPrizes];
     updated[index].label = value;
     setLocalPrizes(updated);
-    onUpdate(updated);
+    onUpdate(updated, true); // labelsChanged = true
   };
 
   const handleAmountChange = (index: number, value: string) => {
     const updated = [...localPrizes];
     updated[index].amount = value;
     setLocalPrizes(updated);
-    onUpdate(updated);
+    onUpdate(updated, false); // labelsChanged = false
   };
 
   const handleAddRow = () => {
     const updated = [...localPrizes, { label: "", amount: "" }];
     setLocalPrizes(updated);
-    onUpdate(updated);
+    onUpdate(updated, true); // labelsChanged = true (count changed)
   };
 
   const handleRemoveRow = (index: number) => {
     const updated = localPrizes.filter((_, i) => i !== index);
     setLocalPrizes(updated);
-    onUpdate(updated);
+    onUpdate(updated, true); // labelsChanged = true (count changed)
   };
 
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Prize Payouts</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Prize Payouts</h3>
+          {preset !== "custom" && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Synced with {preset === "quarters" ? "Quarters" : "Halves"} preset
+            </p>
+          )}
+        </div>
         {!readOnly && (
           <Button
             type="button"
@@ -62,6 +82,16 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false }: Pri
           </Button>
         )}
       </div>
+
+      {countMismatch && preset === "custom" && !readOnly && (
+        <Alert className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Warning: You have {localPrizes.length} prize{localPrizes.length !== 1 ? "s" : ""} but {layerCount} layer{layerCount !== 1 ? "s" : ""}. 
+            For best results, the number of prizes should match the number of layers.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="space-y-3">
         {/* Header Row */}
@@ -111,13 +141,12 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false }: Pri
       </div>
 
       <div className="mt-4 text-sm text-muted-foreground">
-        <p className="font-medium mb-1">Common prize types:</p>
+        <p className="font-medium mb-1">Tips:</p>
         <ul className="list-disc list-inside space-y-1 text-xs">
-          <li><strong>Q1, Q2, Q3, Q4</strong> - Quarter winners</li>
-          <li><strong>Half, Final</strong> - Half and final score winners</li>
-          <li><strong>Q1+2, Q2+2</strong> - Add 2 to the winning numbers</li>
-          <li><strong>Opposite</strong> - Opposite of the winning numbers</li>
-          <li><strong>Reverse</strong> - Reverse the winning numbers</li>
+          <li>Prize labels should match your layer labels (Q1→Q1, H1→H1, etc.)</li>
+          <li>Use the <strong>preset selector</strong> above to automatically sync everything</li>
+          <li>Each prize's color on the grid matches its position in this list</li>
+          <li>Custom labels like "Q1+2", "Opposite", or "Reverse" are supported for advanced scoring</li>
         </ul>
       </div>
     </Card>
