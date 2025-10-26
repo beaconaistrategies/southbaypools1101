@@ -149,10 +149,8 @@ export default function PublicBoard() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="space-y-8">
           <WinnersPanel
-            q1Winner={contest.q1Winner || ""}
-            q2Winner={contest.q2Winner || ""}
-            q3Winner={contest.q3Winner || ""}
-            q4Winner={contest.q4Winner || ""}
+            prizes={contest.prizes || []}
+            winners={contest.winners || []}
             readOnly={true}
           />
           

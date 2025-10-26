@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Shuffle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Contest, Square, Prize } from "@shared/schema";
+import type { Contest, Square, Prize, Winner } from "@shared/schema";
 
 export default function ContestManager() {
   const { toast } = useToast();
@@ -165,9 +165,18 @@ export default function ContestManager() {
     setSelectedSquareToRelease(null);
   };
 
-  const handleUpdateWinner = (quarter: "q1" | "q2" | "q3" | "q4", value: string) => {
-    const winnerField = `${quarter}Winner`;
-    updateContestMutation.mutate({ [winnerField]: value });
+  const handleUpdateWinners = (winners: Winner[]) => {
+    updateContestMutation.mutate(
+      { winners },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Winners Updated",
+            description: "Winning squares have been saved.",
+          });
+        },
+      }
+    );
   };
 
   if (contestLoading || squaresLoading) {
@@ -382,15 +391,6 @@ export default function ContestManager() {
           </TabsContent>
 
           <TabsContent value="winners" className="space-y-6">
-            <WinnersPanel
-              q1Winner={contest.q1Winner || ""}
-              q2Winner={contest.q2Winner || ""}
-              q3Winner={contest.q3Winner || ""}
-              q4Winner={contest.q4Winner || ""}
-              onUpdate={handleUpdateWinner}
-              readOnly={false}
-            />
-            
             <PrizesEditor
               prizes={contest.prizes || []}
               onUpdate={(prizes: Prize[]) => {
@@ -406,6 +406,13 @@ export default function ContestManager() {
                   }
                 );
               }}
+            />
+            
+            <WinnersPanel
+              prizes={contest.prizes || []}
+              winners={contest.winners || []}
+              onUpdate={handleUpdateWinners}
+              readOnly={false}
             />
           </TabsContent>
         </Tabs>

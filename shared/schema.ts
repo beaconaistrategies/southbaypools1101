@@ -26,6 +26,11 @@ export type Prize = {
   amount: string;
 };
 
+export type Winner = {
+  label: string;
+  squareNumber: number;
+};
+
 export const contests = pgTable("contests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -41,6 +46,7 @@ export const contests = pgTable("contests", {
   showRedHeaders: boolean("show_red_headers").notNull().default(false),
   status: contestStatusEnum("status").notNull().default("open"),
   prizes: jsonb("prizes").$type<Prize[]>().default(sql`'[]'::jsonb`),
+  winners: jsonb("winners").$type<Winner[]>().default(sql`'[]'::jsonb`),
   q1Winner: text("q1_winner"),
   q2Winner: text("q2_winner"),
   q3Winner: text("q3_winner"),
