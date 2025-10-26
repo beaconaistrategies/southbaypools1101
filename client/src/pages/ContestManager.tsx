@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft, Download, Trash2, Copy } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Copy, Link as LinkIcon, ExternalLink } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
@@ -248,6 +248,23 @@ export default function ContestManager() {
     cloneContestMutation.mutate({ name, eventDate });
   };
 
+  const handleCopyPublicLink = async () => {
+    const publicUrl = `${window.location.origin}/board/${contestId}`;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast({
+        title: "Link Copied",
+        description: "Public board link copied to clipboard.",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -344,7 +361,7 @@ export default function ContestManager() {
           </TabsList>
 
           <TabsContent value="board" className="space-y-6">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <Button
                 variant={contest.status === "open" ? "outline" : "default"}
                 onClick={toggleLock}
@@ -389,6 +406,27 @@ export default function ContestManager() {
                   </>
                 )}
               </Button>
+
+              <div className="ml-auto flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCopyPublicLink}
+                  data-testid="button-copy-link"
+                >
+                  <LinkIcon className="h-4 w-4 mr-2" />
+                  Copy Public Link
+                </Button>
+                <Button
+                  variant="outline"
+                  asChild
+                  data-testid="button-view-public"
+                >
+                  <a href={`/board/${contestId}`} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View Public Board
+                  </a>
+                </Button>
+              </div>
             </div>
 
             <div className="bg-card border rounded-lg p-6">
