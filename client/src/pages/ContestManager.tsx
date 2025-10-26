@@ -316,6 +316,7 @@ export default function ContestManager() {
                 leftLayerLabels={contest.leftLayerLabels || undefined}
                 showRedHeaders={contest.showRedHeaders}
                 squares={squares}
+                prizes={contest.prizes || []}
                 winners={contest.winners || []}
                 readOnly={true}
               />

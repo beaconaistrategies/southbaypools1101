@@ -8,6 +8,14 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 26, 2025 - Layer Color-Coded Winner Highlighting
+- **Visual Connection**: Winning squares now filled with matching header layer color instead of gold
+- **Prize-to-Layer Mapping**: Winner square color determined by prize index in prizes array (Prize 0 → Layer 0 color, etc.)
+- **Color Scheme**: Rose (Layer 0), Blue (Layer 1), Amber (Layer 2), Emerald (Layer 3), Purple (Layer 4), Cyan (Layer 5)
+- **Entry Name Preservation**: Entry names remain visible on winning squares with appropriate contrast
+- **Badge Matching**: Prize badges use matching darker shade of layer color for visual consistency
+- **Public Board Enhancement**: Public Board link now opens in new tab with external link icon for easy admin navigation
+
 ### October 26, 2025 - Red Headers Visibility Toggle
 - **Admin Control**: Added toggle button in Contest Manager to reveal/hide red header numbers (0-9 digits)
 - **Default Behavior**: Red headers remain hidden by default (showRedHeaders=false) until admin reveals them

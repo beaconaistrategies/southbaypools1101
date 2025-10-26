@@ -1,7 +1,7 @@
 import { useState, Fragment } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import type { Winner } from "@shared/schema";
+import type { Winner, Prize } from "@shared/schema";
 
 interface Square {
   index: number;
@@ -22,6 +22,7 @@ interface SquareGridProps {
   leftLayerLabels?: string[];
   showRedHeaders?: boolean;
   squares: Square[];
+  prizes?: Prize[];
   winners?: Winner[];
   onSquareClick?: (square: Square) => void;
   readOnly?: boolean;
@@ -36,6 +37,7 @@ export default function SquareGrid({
   leftLayerLabels,
   showRedHeaders = false,
   squares,
+  prizes = [],
   winners = [],
   onSquareClick,
   readOnly = false
@@ -57,10 +59,29 @@ export default function SquareGrid({
     return colors[layerIdx] || colors[0];
   };
 
-  // Check if a square is a winner
-  const getWinnerLabel = (squareNumber: number): string | undefined => {
+  // Get badge color that matches layer color
+  const getLayerBadgeColor = (layerIdx: number): string => {
+    const badgeColors = [
+      "bg-rose-600 hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800",      // Layer 0: Rose
+      "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800",      // Layer 1: Blue
+      "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",  // Layer 2: Amber
+      "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800", // Layer 3: Emerald
+      "bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800",  // Layer 4: Purple
+      "bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-800",      // Layer 5: Cyan
+    ];
+    return badgeColors[layerIdx] || badgeColors[0];
+  };
+
+  // Check if a square is a winner and get its prize index
+  const getWinnerInfo = (squareNumber: number): { label: string; prizeIndex: number } | undefined => {
     const winner = winners.find(w => w.squareNumber === squareNumber);
-    return winner?.label;
+    if (!winner) return undefined;
+    
+    const prizeIndex = prizes.findIndex(p => p.label === winner.label);
+    return {
+      label: winner.label,
+      prizeIndex: prizeIndex >= 0 ? prizeIndex : 0
+    };
   };
 
   const getSquare = (row: number, col: number): Square | undefined => {
@@ -76,16 +97,16 @@ export default function SquareGrid({
     const isAvailable = square.status === "available";
     const isTaken = square.status === "taken";
     const isDisabled = square.status === "disabled";
-    const winnerLabel = getWinnerLabel(square.index);
-    const isWinner = !!winnerLabel;
+    const winnerInfo = getWinnerInfo(square.index);
+    const isWinner = !!winnerInfo;
     
     const baseClasses = "relative flex flex-col items-center justify-center min-h-[50px] border text-center transition-all";
     const cursorClass = readOnly || isDisabled ? "cursor-default" : (isAvailable ? "cursor-pointer" : "cursor-default");
     
-    // Winner squares get special styling with gold border
-    const borderClass = isWinner ? "border-2 border-yellow-500 dark:border-yellow-600" : "border-border";
+    // Winner squares use layer color matching the prize
+    const borderClass = isWinner ? "border-2" : "border-border";
     const bgClass = isWinner
-      ? "bg-yellow-100/80 dark:bg-yellow-900/30"
+      ? getLayerColor(winnerInfo.prizeIndex)
       : isTaken 
         ? "bg-muted" 
         : isDisabled 
@@ -105,8 +126,8 @@ export default function SquareGrid({
           {square.index}
         </span>
         {isWinner && (
-          <Badge variant="default" className="absolute top-1 right-1 text-xs bg-yellow-600 hover:bg-yellow-700">
-            {winnerLabel}
+          <Badge variant="default" className={`absolute top-1 right-1 text-xs ${getLayerBadgeColor(winnerInfo.prizeIndex)}`}>
+            {winnerInfo.label}
           </Badge>
         )}
         {isTaken && square.entryName && (
