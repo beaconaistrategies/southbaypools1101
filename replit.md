@@ -8,6 +8,14 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 26, 2025 - Red Headers Visibility Toggle
+- **Admin Control**: Added toggle button in Contest Manager to reveal/hide red header numbers (0-9 digits)
+- **Default Behavior**: Red headers remain hidden by default (showRedHeaders=false) until admin reveals them
+- **Toggle UI**: Eye/EyeOff icons with "Reveal Numbers" / "Hide Numbers" button text
+- **Synchronized Display**: Visibility setting applies to both admin manager view and public board
+- **Database Field**: Added showRedHeaders boolean column to contests table
+- **End-to-End Verified**: Toggle functionality tested across manager and public board views
+
 ### October 26, 2025 - Multi-Layer Red Headers Refactor
 - **Schema Migration**: Changed topAxisNumbers and leftAxisNumbers from `number[]` to `number[][]` (jsonb) to support multiple payout layers
 - **Layer Labels**: Added optional topLayerLabels and leftLayerLabels (string[] arrays) to name periods like "Q1", "Q2", "Q3", "Q4"
