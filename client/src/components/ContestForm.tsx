@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Shuffle } from "lucide-react";
 import SquareSelector from "./SquareSelector";
+import PrizesEditor from "./PrizesEditor";
+import type { Prize } from "@shared/schema";
 
 interface ContestFormProps {
   initialData?: {
@@ -22,6 +24,7 @@ interface ContestFormProps {
     redRowsCount: number;
     status: string;
     availableSquares: number[];
+    prizes?: Prize[];
   };
   onSubmit: (data: any) => void;
   onCancel: () => void;
@@ -56,6 +59,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [availableSquares, setAvailableSquares] = useState<number[]>(
     initialData?.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1)
   );
+  const [prizes, setPrizes] = useState<Prize[]>(initialData?.prizes || []);
 
   // When redRowsCount changes, update the nested arrays
   useEffect(() => {
@@ -132,7 +136,8 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       leftLayerLabels: leftLayerLabels.filter(l => l.trim()),
       redRowsCount,
       status: isOpen ? "open" : "locked",
-      availableSquares
+      availableSquares,
+      prizes
     });
   };
 
@@ -372,6 +377,11 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
           onSelectionChange={setAvailableSquares}
         />
       </Card>
+
+      <PrizesEditor
+        prizes={prizes}
+        onUpdate={setPrizes}
+      />
 
       <Card className="p-6">
         <div className="flex items-center justify-between">

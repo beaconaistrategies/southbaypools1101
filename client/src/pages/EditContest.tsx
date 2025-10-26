@@ -105,6 +105,7 @@ export default function EditContest() {
     redRowsCount: contest.topAxisNumbers.length,
     status: contest.status,
     availableSquares,
+    prizes: contest.prizes || [],
   };
 
   return (
