@@ -1,7 +1,11 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Define enums for type safety
+export const contestStatusEnum = pgEnum("contest_status", ["open", "locked"]);
+export const squareStatusEnum = pgEnum("square_status", ["available", "taken", "disabled"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -27,7 +31,7 @@ export const contests = pgTable("contests", {
   topAxisNumbers: integer("top_axis_numbers").array().notNull(),
   leftAxisNumbers: integer("left_axis_numbers").array().notNull(),
   redRowsCount: integer("red_rows_count").notNull().default(2),
-  status: text("status").notNull().default("open"),
+  status: contestStatusEnum("status").notNull().default("open"),
   q1Winner: text("q1_winner"),
   q2Winner: text("q2_winner"),
   q3Winner: text("q3_winner"),
@@ -38,9 +42,17 @@ export const contests = pgTable("contests", {
 export const insertContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
+}).extend({
+  topAxisNumbers: z.array(z.number().min(0).max(9)).length(10),
+  leftAxisNumbers: z.array(z.number().min(0).max(9)).length(10),
+  redRowsCount: z.number().min(1).max(6),
+  status: z.enum(["open", "locked"]).optional(),
 });
 
+export const updateContestSchema = insertContestSchema.partial();
+
 export type InsertContest = z.infer<typeof insertContestSchema>;
+export type UpdateContest = z.infer<typeof updateContestSchema>;
 export type Contest = typeof contests.$inferSelect;
 
 export const squares = pgTable("squares", {
@@ -49,7 +61,7 @@ export const squares = pgTable("squares", {
   index: integer("index").notNull(),
   row: integer("row").notNull(),
   col: integer("col").notNull(),
-  status: text("status").notNull().default("available"),
+  status: squareStatusEnum("status").notNull().default("available"),
   entryName: text("entry_name"),
   holderName: text("holder_name"),
   holderEmail: text("holder_email"),
@@ -57,7 +69,20 @@ export const squares = pgTable("squares", {
 
 export const insertSquareSchema = createInsertSchema(squares).omit({
   id: true,
+}).extend({
+  status: z.enum(["available", "taken", "disabled"]).optional(),
+  index: z.number().min(1).max(100),
+  row: z.number().min(0).max(9),
+  col: z.number().min(0).max(9),
+});
+
+export const updateSquareSchema = insertSquareSchema.partial().omit({
+  contestId: true,
+  index: true,
+  row: true,
+  col: true,
 });
 
 export type InsertSquare = z.infer<typeof insertSquareSchema>;
+export type UpdateSquare = z.infer<typeof updateSquareSchema>;
 export type Square = typeof squares.$inferSelect;

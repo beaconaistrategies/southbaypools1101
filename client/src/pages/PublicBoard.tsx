@@ -1,51 +1,52 @@
 import { useState } from "react";
+import { useParams } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import SquareGrid from "@/components/SquareGrid";
 import ClaimSquareModal from "@/components/ClaimSquareModal";
 import WinnersPanel from "@/components/WinnersPanel";
 import StatusBadge from "@/components/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Contest, Square } from "@shared/schema";
 
 export default function PublicBoard() {
   const { toast } = useToast();
+  const params = useParams();
+  const contestId = params.id || "1";
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
-  
-  //todo: remove mock functionality
-  const [contest] = useState<{
-    name: string;
-    topTeam: string;
-    leftTeam: string;
-    status: "open" | "locked";
-    topAxisNumbers: number[];
-    leftAxisNumbers: number[];
-    redRows: number[];
-    redCols: number[];
-  }>({
-    name: "Week 8: SF vs DAL",
-    topTeam: "San Francisco",
-    leftTeam: "Dallas",
-    status: "open",
-    topAxisNumbers: [3, 7, 0, 4, 8, 1, 5, 9, 2, 6],
-    leftAxisNumbers: [1, 5, 9, 3, 7, 2, 6, 0, 4, 8],
-    redRows: [1, 3],
-    redCols: [0, 4],
+
+  // Fetch contest data
+  const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
+    queryKey: ["/api/contests", contestId],
+    queryFn: async () => {
+      const response = await fetch(`/api/contests/${contestId}`);
+      if (!response.ok) throw new Error("Failed to fetch contest");
+      return response.json();
+    },
   });
 
-  const [squares, setSquares] = useState(
-    Array.from({ length: 100 }, (_, i) => ({
-      index: i + 1,
-      row: Math.floor(i / 10),
-      col: i % 10,
-      status: i === 6 || i === 49 || i === 90 ? "taken" as const :
-              i === 15 || i === 16 ? "disabled" as const :
-              "available" as const,
-      entryName: i === 6 ? "AK7" : i === 49 ? "Sam P" : i === 90 ? "JR91" : undefined,
-      holderName: i === 6 ? "Alex Kim" : i === 49 ? "Sam Patel" : i === 90 ? "Jordan R" : undefined,
-      holderEmail: i === 6 ? "alex@example.com" : i === 49 ? "sam@example.com" : i === 90 ? "jordan@example.com" : undefined,
-    }))
-  );
+  // Fetch squares data
+  const { data: squares = [], isLoading: squaresLoading } = useQuery<Square[]>({
+    queryKey: ["/api/contests", contestId, "squares"],
+    queryFn: async () => {
+      const response = await fetch(`/api/contests/${contestId}/squares`);
+      if (!response.ok) throw new Error("Failed to fetch squares");
+      return response.json();
+    },
+  });
+
+  // Claim square mutation
+  const claimSquareMutation = useMutation({
+    mutationFn: async ({ index, data }: { index: number; data: any }) => {
+      return await apiRequest(`/api/contests/${contestId}/squares/${index}`, "PATCH", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
+    },
+  });
 
   const handleSquareClick = (square: any) => {
-    if (contest.status === "locked") {
+    if (contest?.status === "locked") {
       toast({
         title: "Contest Locked",
         description: "This contest is no longer accepting new picks.",
@@ -61,23 +62,62 @@ export default function PublicBoard() {
 
   const handleClaimSquare = (data: { holderName: string; holderEmail: string; entryName: string }) => {
     if (selectedSquare) {
-      setSquares(prev => prev.map(s => 
-        s.index === selectedSquare
-          ? { ...s, status: "taken" as const, ...data }
-          : s
-      ));
-      
-      toast({
-        title: "Square reserved",
-        description: `Square #${selectedSquare} has been reserved for ${data.entryName}`,
-      });
-      
-      setSelectedSquare(null);
+      claimSquareMutation.mutate(
+        {
+          index: selectedSquare,
+          data: {
+            status: "taken",
+            ...data,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast({
+              title: "Square reserved",
+              description: `Square #${selectedSquare} has been reserved for ${data.entryName}`,
+            });
+            setSelectedSquare(null);
+          },
+          onError: () => {
+            toast({
+              title: "Error",
+              description: "Failed to claim square. Please try again.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
     }
   };
 
+  if (contestLoading || squaresLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-background/95 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <p className="text-muted-foreground">Loading contest...</p>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
+  if (!contest) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-background/95 backdrop-blur">
+          <div className="max-w-7xl mx-auto px-6 py-6">
+            <p className="text-destructive">Contest not found</p>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
   const takenCount = squares.filter(s => s.status === "taken").length;
   const availableCount = squares.filter(s => s.status === "available").length;
+  const redRows = Array.from({ length: contest.redRowsCount }, (_, i) => i);
+  const redCols: number[] = [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -92,7 +132,7 @@ export default function PublicBoard() {
                 {contest.topTeam} vs {contest.leftTeam}
               </p>
             </div>
-            <StatusBadge status={contest.status} />
+            <StatusBadge status={contest.status as "open" | "locked"} />
           </div>
           
           <div className="flex gap-6 text-sm">
@@ -111,10 +151,10 @@ export default function PublicBoard() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="space-y-8">
           <WinnersPanel
-            q1Winner="23"
-            q2Winner=""
-            q3Winner="67"
-            q4Winner=""
+            q1Winner={contest.q1Winner || ""}
+            q2Winner={contest.q2Winner || ""}
+            q3Winner={contest.q3Winner || ""}
+            q4Winner={contest.q4Winner || ""}
             readOnly={true}
           />
           
@@ -124,8 +164,8 @@ export default function PublicBoard() {
               leftTeam={contest.leftTeam}
               topAxisNumbers={contest.topAxisNumbers}
               leftAxisNumbers={contest.leftAxisNumbers}
-              redRows={contest.redRows}
-              redCols={contest.redCols}
+              redRows={redRows}
+              redCols={redCols}
               squares={squares}
               onSquareClick={handleSquareClick}
               readOnly={contest.status === "locked"}

@@ -6,24 +6,16 @@ import EmptyState from "@/components/EmptyState";
 import { Grid3x3 } from "lucide-react";
 import type { Contest } from "@shared/schema";
 
+type ContestWithCounts = Contest & {
+  takenSquares: number;
+  totalSquares: number;
+};
+
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   
-  const { data: contests = [], isLoading } = useQuery<Contest[]>({
+  const { data: contests = [], isLoading } = useQuery<ContestWithCounts[]>({
     queryKey: ["/api/contests"],
-  });
-
-  const { data: allSquares = {} } = useQuery<Record<string, any[]>>({
-    queryKey: ["/api/contests/squares"],
-    queryFn: async () => {
-      const squaresByContest: Record<string, any[]> = {};
-      for (const contest of contests) {
-        const response = await fetch(`/api/contests/${contest.id}/squares`);
-        squaresByContest[contest.id] = await response.json();
-      }
-      return squaresByContest;
-    },
-    enabled: contests.length > 0,
   });
 
   const handleNewContest = () => {
@@ -69,25 +61,21 @@ export default function AdminDashboard() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {contests.map((contest) => {
-              const squares = allSquares[contest.id] || [];
-              const takenSquares = squares.filter((s: any) => s.status === "taken").length;
-              return (
-                <ContestCard
-                  key={contest.id}
-                  id={contest.id}
-                  name={contest.name}
-                  eventDate={new Date(contest.eventDate)}
-                  status={contest.status as "open" | "locked"}
-                  topTeam={contest.topTeam}
-                  leftTeam={contest.leftTeam}
-                  takenSquares={takenSquares}
-                  totalSquares={100}
-                  onManage={handleManage}
-                  onViewPublic={handleViewPublic}
-                />
-              );
-            })}
+            {contests.map((contest) => (
+              <ContestCard
+                key={contest.id}
+                id={contest.id}
+                name={contest.name}
+                eventDate={new Date(contest.eventDate)}
+                status={contest.status as "open" | "locked"}
+                topTeam={contest.topTeam}
+                leftTeam={contest.leftTeam}
+                takenSquares={contest.takenSquares}
+                totalSquares={contest.totalSquares}
+                onManage={handleManage}
+                onViewPublic={handleViewPublic}
+              />
+            ))}
           </div>
         )}
       </main>

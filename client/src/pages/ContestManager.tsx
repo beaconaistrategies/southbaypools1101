@@ -350,7 +350,7 @@ export default function ContestManager() {
               q2Winner={contest.q2Winner || ""}
               q3Winner={contest.q3Winner || ""}
               q4Winner={contest.q4Winner || ""}
-              onUpdateWinner={handleUpdateWinner}
+              onUpdate={handleUpdateWinner}
               readOnly={false}
             />
           </TabsContent>

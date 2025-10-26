@@ -6,9 +6,9 @@ interface Square {
   row: number;
   col: number;
   status: "available" | "taken" | "disabled";
-  entryName?: string;
-  holderName?: string;
-  holderEmail?: string;
+  entryName?: string | null;
+  holderName?: string | null;
+  holderEmail?: string | null;
 }
 
 interface SquareGridProps {

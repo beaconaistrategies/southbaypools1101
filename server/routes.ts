@@ -1,17 +1,31 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContestSchema, insertSquareSchema } from "@shared/schema";
+import { insertContestSchema, updateContestSchema, updateSquareSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Contest routes
   
-  // Get all contests
+  // Get all contests with square counts
   app.get("/api/contests", async (req, res) => {
     try {
       const contests = await storage.getAllContests();
-      res.json(contests);
+      
+      // Fetch square counts for all contests in parallel
+      const contestsWithCounts = await Promise.all(
+        contests.map(async (contest) => {
+          const squares = await storage.getContestSquares(contest.id);
+          const takenCount = squares.filter(s => s.status === "taken").length;
+          return {
+            ...contest,
+            takenSquares: takenCount,
+            totalSquares: squares.length,
+          };
+        })
+      );
+      
+      res.json(contestsWithCounts);
     } catch (error) {
       console.error("Error fetching contests:", error);
       res.status(500).json({ error: "Failed to fetch contests" });
@@ -55,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           index,
           row: Math.floor(i / 10),
           col: i % 10,
-          status: availableSquares.includes(index) ? "available" : "disabled",
+          status: availableSquares.includes(index) ? ("available" as const) : ("disabled" as const),
         };
       });
       
@@ -74,21 +88,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a contest
   app.patch("/api/contests/:id", async (req, res) => {
     try {
-      const updateData: any = {};
+      // Convert eventDate if present
+      const bodyWithDate = req.body.eventDate 
+        ? { ...req.body, eventDate: new Date(req.body.eventDate) }
+        : req.body;
       
-      if (req.body.name !== undefined) updateData.name = req.body.name;
-      if (req.body.eventDate !== undefined) updateData.eventDate = new Date(req.body.eventDate);
-      if (req.body.topTeam !== undefined) updateData.topTeam = req.body.topTeam;
-      if (req.body.leftTeam !== undefined) updateData.leftTeam = req.body.leftTeam;
-      if (req.body.notes !== undefined) updateData.notes = req.body.notes;
-      if (req.body.topAxisNumbers !== undefined) updateData.topAxisNumbers = req.body.topAxisNumbers;
-      if (req.body.leftAxisNumbers !== undefined) updateData.leftAxisNumbers = req.body.leftAxisNumbers;
-      if (req.body.redRowsCount !== undefined) updateData.redRowsCount = req.body.redRowsCount;
-      if (req.body.status !== undefined) updateData.status = req.body.status;
-      if (req.body.q1Winner !== undefined) updateData.q1Winner = req.body.q1Winner;
-      if (req.body.q2Winner !== undefined) updateData.q2Winner = req.body.q2Winner;
-      if (req.body.q3Winner !== undefined) updateData.q3Winner = req.body.q3Winner;
-      if (req.body.q4Winner !== undefined) updateData.q4Winner = req.body.q4Winner;
+      // Validate update data
+      const updateData = updateContestSchema.parse(bodyWithDate);
       
       const contest = await storage.updateContest(req.params.id, updateData);
       if (!contest) {
@@ -96,6 +102,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(contest);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid update data", details: error.errors });
+      }
       console.error("Error updating contest:", error);
       res.status(500).json({ error: "Failed to update contest" });
     }
@@ -129,12 +138,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/contests/:contestId/squares/:index", async (req, res) => {
     try {
       const index = parseInt(req.params.index);
-      const updateData: any = {};
       
-      if (req.body.status !== undefined) updateData.status = req.body.status;
-      if (req.body.entryName !== undefined) updateData.entryName = req.body.entryName;
-      if (req.body.holderName !== undefined) updateData.holderName = req.body.holderName;
-      if (req.body.holderEmail !== undefined) updateData.holderEmail = req.body.holderEmail;
+      // Validate update data
+      const updateData = updateSquareSchema.parse(req.body);
       
       const square = await storage.updateSquareByContestAndIndex(
         req.params.contestId,
@@ -147,6 +153,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(square);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid update data", details: error.errors });
+      }
       console.error("Error updating square:", error);
       res.status(500).json({ error: "Failed to update square" });
     }
