@@ -3,11 +3,12 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Copy } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import CloneContestDialog from "@/components/CloneContestDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ export default function ContestManager() {
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedSquareToRelease, setSelectedSquareToRelease] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [filter, setFilter] = useState<"all" | "available" | "taken">("all");
 
   // Fetch contest data
@@ -221,6 +223,31 @@ export default function ContestManager() {
     setShowDeleteDialog(false);
   };
 
+  const cloneContestMutation = useMutation({
+    mutationFn: async (data: { name: string; eventDate: string }) => {
+      return await apiRequest("POST", `/api/contests/${contestId}/clone`, data);
+    },
+    onSuccess: (clonedContest: Contest) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
+      toast({
+        title: "Contest Cloned",
+        description: "The contest has been successfully cloned.",
+      });
+      setLocation(`/admin/contests/${clonedContest.id}`);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to clone contest. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCloneContest = (name: string, eventDate: string) => {
+    cloneContestMutation.mutate({ name, eventDate });
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -277,6 +304,15 @@ export default function ContestManager() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCloneDialog(true)}
+                data-testid="button-clone-contest"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Clone
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -498,6 +534,13 @@ export default function ContestManager() {
         description={`Are you sure you want to permanently delete "${contest.name}"? This action cannot be undone and will delete all associated squares and data.`}
         confirmLabel="Delete"
         onConfirm={confirmDeleteContest}
+      />
+
+      <CloneContestDialog
+        open={showCloneDialog}
+        onOpenChange={setShowCloneDialog}
+        originalName={contest.name}
+        onConfirm={handleCloneContest}
       />
     </div>
   );

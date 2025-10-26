@@ -121,6 +121,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clone a contest
+  app.post("/api/contests/:id/clone", async (req, res) => {
+    try {
+      const originalContest = await storage.getContest(req.params.id);
+      if (!originalContest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      // Create new contest with cloned settings
+      const clonedContestData = insertContestSchema.parse({
+        name: req.body.name || `${originalContest.name} (Copy)`,
+        topTeam: originalContest.topTeam,
+        leftTeam: originalContest.leftTeam,
+        eventDate: req.body.eventDate ? new Date(req.body.eventDate) : new Date(),
+        status: "open",
+        topAxisNumbers: originalContest.topAxisNumbers,
+        leftAxisNumbers: originalContest.leftAxisNumbers,
+        topLayerLabels: originalContest.topLayerLabels,
+        leftLayerLabels: originalContest.leftLayerLabels,
+        redHeadersCount: originalContest.redHeadersCount,
+        showRedHeaders: false,
+        prizes: originalContest.prizes,
+        winners: [],
+      });
+
+      const clonedContest = await storage.createContest(clonedContestData);
+
+      // Create fresh squares for the cloned contest
+      const squaresToCreate = Array.from({ length: 100 }, (_, i) => ({
+        contestId: clonedContest.id,
+        index: i + 1,
+        row: Math.floor(i / 10),
+        col: i % 10,
+        status: "available" as const,
+      }));
+
+      await storage.createSquares(squaresToCreate);
+
+      res.status(201).json(clonedContest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid clone data", details: error.errors });
+      }
+      console.error("Error cloning contest:", error);
+      res.status(500).json({ error: "Failed to clone contest" });
+    }
+  });
+
   // Square routes
   
   // Get squares for a contest
