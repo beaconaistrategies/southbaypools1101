@@ -25,6 +25,7 @@ interface SquareGridProps {
   prizes?: Prize[];
   winners?: Winner[];
   onSquareClick?: (square: Square) => void;
+  onSquareView?: (square: Square) => void;
   readOnly?: boolean;
 }
 
@@ -40,6 +41,7 @@ export default function SquareGrid({
   prizes = [],
   winners = [],
   onSquareClick,
+  onSquareView,
   readOnly = false
 }: SquareGridProps) {
   const [hoveredSquare, setHoveredSquare] = useState<number | null>(null);
@@ -89,8 +91,18 @@ export default function SquareGrid({
   };
 
   const handleSquareClick = (square: Square) => {
-    if (readOnly || square.status === "disabled") return;
-    onSquareClick?.(square);
+    if (square.status === "disabled") return;
+    
+    // If square is taken, show details
+    if (square.status === "taken" && onSquareView) {
+      onSquareView(square);
+      return;
+    }
+    
+    // If square is available and not readOnly, allow claiming
+    if (square.status === "available" && !readOnly) {
+      onSquareClick?.(square);
+    }
   };
 
   const renderSquareContent = (square: Square) => {
