@@ -215,6 +215,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test webhook endpoint
+  app.post("/api/contests/:id/test-webhook", async (req, res) => {
+    try {
+      const contest = await storage.getContest(req.params.id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      if (!contest.webhookUrl) {
+        return res.status(400).json({ error: "No webhook URL configured" });
+      }
+
+      // Send test webhook with sample data
+      const testData = {
+        contestName: contest.name,
+        contestId: contest.id,
+        entryName: "Test Entry",
+        holderEmail: "test@example.com",
+        holderName: "Test User",
+        squareNumber: 1,
+        topTeam: contest.topTeam,
+        leftTeam: contest.leftTeam,
+        eventDate: contest.eventDate.toISOString(),
+      };
+
+      const response = await fetch(contest.webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          event: "test_webhook",
+          timestamp: new Date().toISOString(),
+          data: testData,
+        }),
+      });
+
+      if (!response.ok) {
+        return res.status(502).json({ 
+          error: "Webhook request failed", 
+          status: response.status,
+          statusText: response.statusText
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: "Test webhook sent successfully",
+        payload: testData
+      });
+    } catch (error) {
+      console.error("Error testing webhook:", error);
+      res.status(500).json({ 
+        error: "Failed to send test webhook",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // Square routes
   
   // Get squares for a contest
