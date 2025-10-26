@@ -25,6 +25,11 @@ export default function MyContests() {
 
   const { data: participations = [], isLoading } = useQuery<ContestParticipation[]>({
     queryKey: ["/api/my-contests", searchEmail],
+    queryFn: async () => {
+      const response = await fetch(`/api/my-contests/${encodeURIComponent(searchEmail)}`);
+      if (!response.ok) throw new Error("Failed to fetch contests");
+      return response.json();
+    },
     enabled: !!searchEmail,
   });
 
