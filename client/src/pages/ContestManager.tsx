@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Trash2 } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
@@ -28,6 +28,7 @@ export default function ContestManager() {
   
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedSquareToRelease, setSelectedSquareToRelease] = useState<number | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [filter, setFilter] = useState<"all" | "available" | "taken">("all");
 
   // Fetch contest data
@@ -190,6 +191,36 @@ export default function ContestManager() {
     }
   };
 
+  const deleteContestMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/contests/${contestId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
+      toast({
+        title: "Contest Deleted",
+        description: "The contest has been permanently deleted.",
+      });
+      setLocation("/admin");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete contest. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteContest = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteContest = () => {
+    deleteContestMutation.mutate();
+    setShowDeleteDialog(false);
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -254,6 +285,15 @@ export default function ContestManager() {
               >
                 <Download className="h-4 w-4 mr-2" />
                 Export CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteContest}
+                data-testid="button-delete-contest"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
               </Button>
               <StatusBadge status={contest.status as "open" | "locked"} />
             </div>
@@ -449,6 +489,15 @@ export default function ContestManager() {
         description={`Are you sure you want to release square #${selectedSquareToRelease}? This will make it available for others to claim.`}
         confirmLabel="Release"
         onConfirm={confirmReleaseSquare}
+      />
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Contest"
+        description={`Are you sure you want to permanently delete "${contest.name}"? This action cannot be undone and will delete all associated squares and data.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDeleteContest}
       />
     </div>
   );
