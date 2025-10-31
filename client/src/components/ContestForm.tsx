@@ -149,6 +149,9 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("ContestForm submit - webhookUrl value:", webhookUrl);
+    console.log("ContestForm submit - webhookUrl trimmed:", webhookUrl.trim());
+    console.log("ContestForm submit - final value:", webhookUrl.trim() || undefined);
     onSubmit({
       name,
       eventDate,
@@ -246,7 +249,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
             <Label htmlFor="webhookUrl">Webhook URL (Optional)</Label>
             <Input
               id="webhookUrl"
-              type="url"
+              type="text"
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://your-n8n-webhook.com/..."

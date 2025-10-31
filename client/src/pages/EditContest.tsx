@@ -98,6 +98,7 @@ export default function EditContest() {
     topTeam: contest.topTeam,
     leftTeam: contest.leftTeam,
     notes: contest.notes || "",
+    webhookUrl: contest.webhookUrl || "",
     topAxisNumbers: contest.topAxisNumbers,
     leftAxisNumbers: contest.leftAxisNumbers,
     topLayerLabels: contest.topLayerLabels || [],

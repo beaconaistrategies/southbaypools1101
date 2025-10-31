@@ -50,14 +50,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a contest with initial squares
   app.post("/api/contests", async (req, res) => {
     try {
+      console.log("POST /api/contests - Request body webhookUrl:", req.body.webhookUrl);
+      
       // Validate contest data
       const contestData = insertContestSchema.parse({
         ...req.body,
         eventDate: new Date(req.body.eventDate),
       });
       
+      console.log("POST /api/contests - After schema validation webhookUrl:", contestData.webhookUrl);
+      
       // Create the contest
       const contest = await storage.createContest(contestData);
+      
+      console.log("POST /api/contests - Created contest webhookUrl:", contest.webhookUrl);
       
       // Get available squares from request body (default to all 100)
       const availableSquares = req.body.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1);
@@ -79,6 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(contest);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.log("POST /api/contests - Zod validation error:", error.errors);
         return res.status(400).json({ error: "Invalid contest data", details: error.errors });
       }
       console.error("Error creating contest:", error);
@@ -89,18 +96,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a contest
   app.patch("/api/contests/:id", async (req, res) => {
     try {
+      console.log("PATCH /api/contests/:id - Request body:", JSON.stringify(req.body, null, 2));
+      
       // Convert eventDate if present
       const bodyWithDate = req.body.eventDate 
         ? { ...req.body, eventDate: new Date(req.body.eventDate) }
         : req.body;
       
+      console.log("PATCH /api/contests/:id - After date conversion:", JSON.stringify(bodyWithDate, null, 2));
+      
       // Validate update data
       const updateData = updateContestSchema.parse(bodyWithDate);
+      
+      console.log("PATCH /api/contests/:id - After schema validation:", JSON.stringify(updateData, null, 2));
       
       const contest = await storage.updateContest(req.params.id, updateData);
       if (!contest) {
         return res.status(404).json({ error: "Contest not found" });
       }
+      
+      console.log("PATCH /api/contests/:id - Saved contest webhook:", contest.webhookUrl);
+      
       res.json(contest);
     } catch (error) {
       if (error instanceof z.ZodError) {
