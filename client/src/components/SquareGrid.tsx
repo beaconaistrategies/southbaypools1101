@@ -171,7 +171,7 @@ export default function SquareGrid({
           >
             {/* Top-left corner: redHeadersCount x redHeadersCount area with merged diagonal cells */}
             {Array.from({ length: redHeadersCount }).map((_, layerIdx) => {
-              // Each layer label cell spans from its diagonal position to bottom-right
+              // Each layer cell spans from its diagonal position to bottom-right
               const span = redHeadersCount - layerIdx;
               return (
                 <div 
@@ -183,9 +183,6 @@ export default function SquareGrid({
                   }}
                   data-testid={`corner-layer-${layerIdx}`}
                 >
-                  <span className="text-lg font-mono font-bold">
-                    {topLayerLabels?.[layerIdx] || leftLayerLabels?.[layerIdx] || `L${layerIdx + 1}`}
-                  </span>
                 </div>
               );
             })}
@@ -214,9 +211,14 @@ export default function SquareGrid({
                 {Array.from({ length: redHeadersCount }).map((_, layerIdx) => (
                   <div 
                     key={`left-header-${layerIdx}-${rowIdx}`}
-                    className={`border border-border ${getLayerColor(layerIdx)} flex items-center justify-center min-h-[50px]`}
+                    className={`border border-border ${getLayerColor(layerIdx)} flex flex-col items-center justify-center min-h-[50px] gap-1`}
                     data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
                   >
+                    {rowIdx === 0 && (leftLayerLabels?.[layerIdx] || topLayerLabels?.[layerIdx]) && (
+                      <span className="text-lg font-mono font-bold">
+                        {leftLayerLabels?.[layerIdx] || topLayerLabels?.[layerIdx]}
+                      </span>
+                    )}
                     {showRedHeaders && (
                       <span className="text-sm font-mono font-semibold">
                         {leftAxisNumbers[layerIdx][rowIdx]}
