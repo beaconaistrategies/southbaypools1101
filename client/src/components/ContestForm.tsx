@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shuffle } from "lucide-react";
+import { Shuffle, Folder as FolderIcon } from "lucide-react";
 import SquareSelector from "./SquareSelector";
 import PrizesEditor from "./PrizesEditor";
-import type { Prize } from "@shared/schema";
+import type { Prize, Folder } from "@shared/schema";
 
 type PayoutPreset = "quarters" | "halves" | "custom";
 
@@ -20,6 +21,7 @@ interface ContestFormProps {
     topTeam: string;
     leftTeam: string;
     notes: string;
+    folderId?: string | null;
     topAxisNumbers: number[][];
     leftAxisNumbers: number[][];
     topLayerLabels?: string[];
@@ -40,7 +42,12 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [leftTeam, setLeftTeam] = useState(initialData?.leftTeam || "");
   const [notes, setNotes] = useState(initialData?.notes || "");
   const [webhookUrl, setWebhookUrl] = useState((initialData as any)?.webhookUrl || "");
+  const [folderId, setFolderId] = useState<string | null>(initialData?.folderId || null);
   const [redRowsCount, setRedRowsCount] = useState(initialData?.redRowsCount || 2);
+
+  const { data: folders = [] } = useQuery<Folder[]>({
+    queryKey: ["/api/folders"],
+  });
   
   // Initialize nested arrays based on redRowsCount
   const generateDefaultLayers = (count: number): number[][] => {
@@ -159,6 +166,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       leftTeam,
       notes,
       webhookUrl: webhookUrl.trim() || undefined,
+      folderId: folderId || undefined,
       topAxisNumbers,
       leftAxisNumbers,
       topLayerLabels: topLayerLabels.filter(l => l.trim()),
@@ -188,6 +196,28 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               data-testid="input-contest-name"
             />
           </div>
+
+          {folders.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="folder">Folder</Label>
+              <Select value={folderId || "none"} onValueChange={(val) => setFolderId(val === "none" ? null : val)}>
+                <SelectTrigger id="folder" data-testid="select-folder">
+                  <SelectValue placeholder="No Folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      <div className="flex items-center gap-2">
+                        <FolderIcon className="h-4 w-4" />
+                        {folder.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

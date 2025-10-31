@@ -31,6 +31,20 @@ export type Winner = {
   squareNumber: number;
 };
 
+export const folders = pgTable("folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertFolderSchema = createInsertSchema(folders).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertFolder = z.infer<typeof insertFolderSchema>;
+export type Folder = typeof folders.$inferSelect;
+
 export const contests = pgTable("contests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -38,6 +52,7 @@ export const contests = pgTable("contests", {
   topTeam: text("top_team").notNull(),
   leftTeam: text("left_team").notNull(),
   notes: text("notes"),
+  folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   topAxisNumbers: jsonb("top_axis_numbers").notNull().$type<number[][]>(),
   leftAxisNumbers: jsonb("left_axis_numbers").notNull().$type<number[][]>(),
   topLayerLabels: jsonb("top_layer_labels").$type<string[]>(),

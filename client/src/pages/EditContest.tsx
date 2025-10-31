@@ -5,12 +5,27 @@ import ContestForm from "@/components/ContestForm";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contest, Square } from "@shared/schema";
+import { Button } from "@/components/ui/button";
+import { Download, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useState } from "react";
 
 export default function EditContest() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const params = useParams();
   const contestId = params.id || "";
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch contest data
   const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
@@ -54,12 +69,68 @@ export default function EditContest() {
     },
   });
 
+  const deleteContestMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/contests/${contestId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
+      toast({
+        title: "Deleted",
+        description: "Contest has been deleted successfully.",
+      });
+      setLocation("/admin");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete contest",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (data: any) => {
     updateContestMutation.mutate(data);
   };
 
   const handleCancel = () => {
     setLocation("/admin");
+  };
+
+  const handleDelete = () => {
+    deleteContestMutation.mutate();
+  };
+
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch(`/api/contests/${contestId}/export-csv`);
+      if (!response.ok) throw new Error("Failed to export contest");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contest-${contestId}-export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Exported",
+        description: "Contest data has been exported to CSV.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to export contest",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (contestLoading || squaresLoading) {
@@ -99,6 +170,7 @@ export default function EditContest() {
     leftTeam: contest.leftTeam,
     notes: contest.notes || "",
     webhookUrl: contest.webhookUrl || "",
+    folderId: contest.folderId || null,
     topAxisNumbers: contest.topAxisNumbers,
     leftAxisNumbers: contest.leftAxisNumbers,
     topLayerLabels: contest.topLayerLabels || [],
@@ -114,11 +186,59 @@ export default function EditContest() {
       <TopNav title="SquareKeeper" />
       
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h2 className="text-3xl font-semibold">Edit Contest</h2>
-          <p className="text-muted-foreground mt-2">
-            Update your football squares pool
-          </p>
+        <div className="mb-6 flex flex-row items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-3xl font-semibold">Edit Contest</h2>
+            <p className="text-muted-foreground mt-2">
+              Update your football squares pool
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={isExporting}
+              data-testid="button-export-csv"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isExporting ? "Exporting..." : "Export CSV"}
+            </Button>
+            
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  data-testid="button-delete-contest"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Contest?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete this contest and all associated squares. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-cancel-delete">
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    data-testid="button-confirm-delete"
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete Contest
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
 
         <ContestForm 

@@ -1,13 +1,31 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import ContestCard from "@/components/ContestCard";
 import EmptyState from "@/components/EmptyState";
-import { Grid3x3, Search } from "lucide-react";
+import { Grid3x3, Search, FolderPlus, Folder as FolderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { Contest } from "@shared/schema";
+import type { Contest, Folder } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type ContestWithCounts = Contest & {
   takenSquares: number;
@@ -16,12 +34,42 @@ type ContestWithCounts = Contest & {
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "locked">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<"upcoming" | "recent">("upcoming");
+  const [folderFilter, setFolderFilter] = useState<string>("all");
+  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
   
   const { data: contests = [], isLoading } = useQuery<ContestWithCounts[]>({
     queryKey: ["/api/contests"],
+  });
+
+  const { data: folders = [] } = useQuery<Folder[]>({
+    queryKey: ["/api/folders"],
+  });
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return await apiRequest("POST", "/api/folders", { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/folders"] });
+      toast({
+        title: "Folder Created",
+        description: "New folder has been created successfully.",
+      });
+      setNewFolderName("");
+      setIsCreateFolderOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create folder",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleNewContest = () => {
@@ -32,12 +80,24 @@ export default function AdminDashboard() {
     setLocation(`/admin/contest/${id}/edit`);
   };
 
+  const handleCreateFolder = () => {
+    if (newFolderName.trim()) {
+      createFolderMutation.mutate(newFolderName.trim());
+    }
+  };
+
   // Filter and sort contests
   const filteredContests = contests
     .filter((contest) => {
       // Status filter
       if (statusFilter !== "all" && contest.status !== statusFilter) {
         return false;
+      }
+      // Folder filter
+      if (folderFilter === "uncategorized") {
+        if (contest.folderId) return false;
+      } else if (folderFilter !== "all") {
+        if (contest.folderId !== folderFilter) return false;
       }
       // Search filter
       if (searchQuery.trim()) {
@@ -71,6 +131,79 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground mt-2">
             Manage your football squares pools
           </p>
+        </div>
+
+        {/* Folder Management */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-2 flex-wrap">
+            <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-create-folder"
+                >
+                  <FolderPlus className="h-4 w-4 mr-2" />
+                  Create Folder
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Folder</DialogTitle>
+                  <DialogDescription>
+                    Create a folder to organize your contests.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Input
+                    placeholder="Folder name (e.g., 'Super Bowl 2025')"
+                    value={newFolderName}
+                    onChange={(e) => setNewFolderName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateFolder();
+                    }}
+                    data-testid="input-folder-name"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateFolderOpen(false)}
+                    data-testid="button-cancel-folder"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCreateFolder}
+                    disabled={!newFolderName.trim() || createFolderMutation.isPending}
+                    data-testid="button-submit-folder"
+                  >
+                    {createFolderMutation.isPending ? "Creating..." : "Create"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {folders.length > 0 && (
+              <Select value={folderFilter} onValueChange={setFolderFilter}>
+                <SelectTrigger className="w-48" data-testid="select-folder-filter">
+                  <SelectValue placeholder="All Folders" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Folders</SelectItem>
+                  <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      <div className="flex items-center gap-2">
+                        <FolderIcon className="h-4 w-4" />
+                        {folder.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         {/* Filters and Search */}

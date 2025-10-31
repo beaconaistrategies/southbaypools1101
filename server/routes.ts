@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContestSchema, updateContestSchema, updateSquareSchema } from "@shared/schema";
+import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
 
@@ -347,6 +347,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error updating square:", error);
       res.status(500).json({ error: "Failed to update square" });
+    }
+  });
+
+  // Folder routes
+  
+  // Get all folders
+  app.get("/api/folders", async (req, res) => {
+    try {
+      const folders = await storage.getAllFolders();
+      res.json(folders);
+    } catch (error) {
+      console.error("Error fetching folders:", error);
+      res.status(500).json({ error: "Failed to fetch folders" });
+    }
+  });
+
+  // Create a folder
+  app.post("/api/folders", async (req, res) => {
+    try {
+      const folderData = insertFolderSchema.parse(req.body);
+      const folder = await storage.createFolder(folderData);
+      res.status(201).json(folder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid folder data", details: error.errors });
+      }
+      console.error("Error creating folder:", error);
+      res.status(500).json({ error: "Failed to create folder" });
+    }
+  });
+
+  // Delete a folder
+  app.delete("/api/folders/:id", async (req, res) => {
+    try {
+      await storage.deleteFolder(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+      res.status(500).json({ error: "Failed to delete folder" });
+    }
+  });
+
+  // Export contest to CSV
+  app.get("/api/contests/:id/export-csv", async (req, res) => {
+    try {
+      const contest = await storage.getContest(req.params.id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+      
+      const squares = await storage.getContestSquares(contest.id);
+      
+      // Build CSV header
+      const csvRows = [];
+      csvRows.push("Square Number,Row,Column,Status,Entry Name,Holder Name,Holder Email");
+      
+      // Add square data
+      for (const square of squares) {
+        csvRows.push(
+          `${square.index},${square.row},${square.col},${square.status},"${square.entryName || ''}","${square.holderName || ''}","${square.holderEmail || ''}"`
+        );
+      }
+      
+      const csv = csvRows.join("\n");
+      
+      // Set headers for download
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="contest-${contest.id}-export.csv"`);
+      res.send(csv);
+    } catch (error) {
+      console.error("Error exporting contest to CSV:", error);
+      res.status(500).json({ error: "Failed to export contest" });
     }
   });
 

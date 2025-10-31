@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Contest, type InsertContest, type Square, type InsertSquare, contests, squares, users } from "@shared/schema";
+import { type User, type InsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, contests, squares, users, folders } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
@@ -7,6 +7,12 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Folder methods
+  getAllFolders(): Promise<Folder[]>;
+  getFolder(id: string): Promise<Folder | undefined>;
+  createFolder(folder: InsertFolder): Promise<Folder>;
+  deleteFolder(id: string): Promise<void>;
   
   // Contest methods
   getContest(id: string): Promise<Contest | undefined>;
@@ -39,6 +45,25 @@ export class DbStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const result = await db.insert(users).values(insertUser).returning();
     return result[0];
+  }
+
+  // Folder methods
+  async getAllFolders(): Promise<Folder[]> {
+    return await db.select().from(folders);
+  }
+
+  async getFolder(id: string): Promise<Folder | undefined> {
+    const result = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createFolder(folder: InsertFolder): Promise<Folder> {
+    const result = await db.insert(folders).values(folder).returning();
+    return result[0];
+  }
+
+  async deleteFolder(id: string): Promise<void> {
+    await db.delete(folders).where(eq(folders.id, id));
   }
 
   // Contest methods
