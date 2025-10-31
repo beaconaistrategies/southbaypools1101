@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Contest, Square } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Trash2, Eye, EyeOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,6 +133,35 @@ export default function EditContest() {
     }
   };
 
+  const toggleRedHeadersMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("PATCH", `/api/contests/${contestId}`, {
+        showRedHeaders: !contest?.showRedHeaders,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
+      toast({
+        title: contest?.showRedHeaders ? "Numbers Hidden" : "Numbers Revealed",
+        description: contest?.showRedHeaders
+          ? "Red header numbers are now hidden from the board."
+          : "Red header numbers are now visible on the board.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to toggle red headers",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleToggleRedHeaders = () => {
+    toggleRedHeadersMutation.mutate();
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -203,6 +232,25 @@ export default function EditContest() {
             >
               <Download className="h-4 w-4 mr-2" />
               {isExporting ? "Exporting..." : "Export CSV"}
+            </Button>
+
+            <Button
+              variant={contest.showRedHeaders ? "default" : "outline"}
+              size="sm"
+              onClick={handleToggleRedHeaders}
+              data-testid="button-toggle-red-headers"
+            >
+              {contest.showRedHeaders ? (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Hide Numbers
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Reveal Numbers
+                </>
+              )}
             </Button>
             
             <AlertDialog>
