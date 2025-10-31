@@ -8,6 +8,15 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 31, 2025 - Layer Labels Consolidation
+- **Unified Layer Labels**: Consolidated topLayerLabels and leftLayerLabels into single layerLabels field
+- **Schema Migration**: Added layer_labels column, migrated existing data, dropped deprecated columns
+- **UX Improvement**: Layer labels now input once in top axis section, eliminating duplicate/confusing inputs
+- **Vertical Display**: Layer labels render vertically in leftmost column of pink corner area
+- **Complete Update**: Updated all components (ContestForm, SquareGrid, ContestManager, PublicBoard, EditContest, CSV export, clone endpoint)
+- **Type Safety**: Maintained strong typing throughout with updated Zod schemas and TypeScript types
+- **Design Rationale**: Both axes represent same payout periods (e.g., Q1, Q2, Q3, Q4), so single unified field eliminates redundancy
+
 ### October 31, 2025 - Folder Organization System & Enhanced Contest Management
 - **Folder/Category System**: Added optional folder organization for contests with database schema (folders table, folderId in contests)
 - **Folder Management UI**: Create Folder button in Admin Dashboard with name input dialog and folder listing
@@ -67,13 +76,13 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ### October 26, 2025 - Multi-Layer Red Headers Refactor
 - **Schema Migration**: Changed topAxisNumbers and leftAxisNumbers from `number[]` to `number[][]` (jsonb) to support multiple payout layers
-- **Layer Labels**: Added optional topLayerLabels and leftLayerLabels (string[] arrays) to name periods like "Q1", "Q2", "Q3", "Q4"
+- **Layer Labels**: Added optional layerLabels (string[] array) to name periods like "Q1", "Q2", "Q3", "Q4" - applies to both axes since they represent the same payout periods
 - **Multi-Layer Architecture**: redHeadersCount now determines number of 0-9 digit sets (layers), creating multiple payout periods
   - 2 red headers = 2 layers for halftime payouts (Q1, Q2)
   - 4 red headers = 4 layers for quarter payouts (Q1, Q2, Q3, Q4)
   - Up to 6 layers supported with validation
 - **Nested Array Validation**: Updated Zod schemas to validate each layer has exactly 10 digits (0-9), outer array length matches redHeadersCount
-- **Grid Structure**: SquareGrid now renders redHeadersCount × redHeadersCount pink corner area with layer labels
+- **Grid Structure**: SquareGrid now renders redHeadersCount × redHeadersCount pink corner area with layer labels displayed vertically in leftmost column
 - **Independent Shuffling**: Each layer shuffles independently, creating unique 0-9 permutations per period
 - **ContestForm Enhancement**: Dynamic layer label inputs that auto-adjust when redHeadersCount changes
 - **End-to-End Verified**: Complete 2-layer workflow tested (create → shuffle → display on manager/public boards)
