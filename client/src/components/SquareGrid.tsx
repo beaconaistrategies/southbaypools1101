@@ -169,23 +169,44 @@ export default function SquareGrid({
               gridTemplateColumns: `repeat(${redHeadersCount}, minmax(60px, 80px)) repeat(10, minmax(50px, 1fr))` 
             }}
           >
-            {/* Top-left corner: redHeadersCount x redHeadersCount area with merged diagonal cells */}
+            {/* Top-left corner: redHeadersCount x redHeadersCount area */}
+            {/* Row 1: Labels in each column - use topLayerLabels for period names */}
             {Array.from({ length: redHeadersCount }).map((_, layerIdx) => {
-              // Each layer cell spans from its diagonal position to bottom-right
-              const span = redHeadersCount - layerIdx;
+              const label = topLayerLabels?.[layerIdx] || leftLayerLabels?.[layerIdx];
               return (
                 <div 
-                  key={`corner-layer-${layerIdx}`}
+                  key={`corner-label-${layerIdx}`}
                   className={`border border-border ${getLayerColor(layerIdx)} flex items-center justify-center min-h-[50px]`}
                   style={{
-                    gridColumn: `${layerIdx + 1} / span ${span}`,
-                    gridRow: `${layerIdx + 1} / span ${span}`
+                    gridColumn: `${layerIdx + 1} / span 1`,
+                    gridRow: `1 / span 1`
                   }}
                   data-testid={`corner-layer-${layerIdx}`}
                 >
+                  {label && (
+                    <span className="text-lg font-mono font-bold">
+                      {label}
+                    </span>
+                  )}
                 </div>
               );
             })}
+            
+            {/* Rows 2+: Colored filler cells to complete the corner square */}
+            {Array.from({ length: redHeadersCount - 1 }).map((_, rowOffset) => (
+              <Fragment key={`corner-row-${rowOffset + 2}`}>
+                {Array.from({ length: redHeadersCount }).map((_, colIdx) => (
+                  <div 
+                    key={`corner-cell-${rowOffset + 2}-${colIdx}`}
+                    className={`border border-border ${getLayerColor(colIdx)} flex items-center justify-center min-h-[50px]`}
+                    style={{
+                      gridColumn: `${colIdx + 1} / span 1`,
+                      gridRow: `${rowOffset + 2} / span 1`
+                    }}
+                  />
+                ))}
+              </Fragment>
+            ))}
 
             {/* Top header numbers - render all layers */}
             {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
@@ -214,11 +235,6 @@ export default function SquareGrid({
                     className={`border border-border ${getLayerColor(layerIdx)} flex flex-col items-center justify-center min-h-[50px] gap-1`}
                     data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
                   >
-                    {rowIdx === 0 && (leftLayerLabels?.[layerIdx] || topLayerLabels?.[layerIdx]) && (
-                      <span className="text-lg font-mono font-bold">
-                        {leftLayerLabels?.[layerIdx] || topLayerLabels?.[layerIdx]}
-                      </span>
-                    )}
                     {showRedHeaders && (
                       <span className="text-sm font-mono font-semibold">
                         {leftAxisNumbers[layerIdx][rowIdx]}
