@@ -58,6 +58,8 @@ export const contests = pgTable("contests", {
   layerLabels: jsonb("layer_labels").$type<string[]>(),
   redRowsCount: integer("red_rows_count").notNull().default(2),
   showRedHeaders: boolean("show_red_headers").notNull().default(false),
+  headerColorsEnabled: boolean("header_colors_enabled").notNull().default(true),
+  layerColors: jsonb("layer_colors").$type<string[]>(),
   status: contestStatusEnum("status").notNull().default("open"),
   prizes: jsonb("prizes").$type<Prize[]>().default(sql`'[]'::jsonb`),
   winners: jsonb("winners").$type<Winner[]>().default(sql`'[]'::jsonb`),
@@ -77,6 +79,8 @@ const baseContestSchema = createInsertSchema(contests).omit({
   leftAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   layerLabels: z.array(z.string()).optional(),
   redRowsCount: z.number().min(1).max(6),
+  headerColorsEnabled: z.boolean().optional(),
+  layerColors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).optional(),
   status: z.enum(["open", "locked"]).optional(),
 });
 

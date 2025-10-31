@@ -68,6 +68,13 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   );
   const [prizes, setPrizes] = useState<Prize[]>(initialData?.prizes || []);
   const [payoutPreset, setPayoutPreset] = useState<PayoutPreset>("custom");
+  
+  // Color customization
+  const defaultColors = ["#fda4af", "#93c5fd", "#fcd34d", "#6ee7b7", "#c084fc", "#67e8f9"];
+  const [headerColorsEnabled, setHeaderColorsEnabled] = useState((initialData as any)?.headerColorsEnabled ?? true);
+  const [layerColors, setLayerColors] = useState<string[]>(
+    (initialData as any)?.layerColors || defaultColors.slice(0, redRowsCount)
+  );
 
   // Apply preset configuration
   const applyPreset = (preset: PayoutPreset) => {
@@ -114,6 +121,19 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
         newLeftLayers.splice(redRowsCount);
       }
       setLeftAxisNumbers(newLeftLayers);
+      
+      // Adjust layer colors
+      const newColors = [...layerColors];
+      if (redRowsCount > currentLayers) {
+        // Add new colors from defaults
+        for (let i = currentLayers; i < redRowsCount; i++) {
+          newColors.push(defaultColors[i % defaultColors.length]);
+        }
+      } else {
+        // Remove excess colors
+        newColors.splice(redRowsCount);
+      }
+      setLayerColors(newColors);
     }
   }, [redRowsCount]);
 
@@ -162,6 +182,8 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       leftAxisNumbers,
       layerLabels: layerLabels.filter(l => l.trim()),
       redRowsCount,
+      headerColorsEnabled,
+      layerColors: layerColors.slice(0, redRowsCount),
       status: isOpen ? "open" : "locked",
       availableSquares,
       prizes
@@ -450,6 +472,58 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               </div>
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Header Colors</h3>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="headerColorsEnabled" className="text-base">Enable Header Colors</Label>
+              <p className="text-sm text-muted-foreground">
+                Add color coding to header rows and columns for easier tracking
+              </p>
+            </div>
+            <Switch
+              id="headerColorsEnabled"
+              checked={headerColorsEnabled}
+              onCheckedChange={setHeaderColorsEnabled}
+              data-testid="switch-header-colors"
+            />
+          </div>
+
+          {headerColorsEnabled && (
+            <div className="space-y-3 pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Customize colors for each layer (payout period)
+              </p>
+              <div className="grid grid-cols-1 gap-3">
+                {Array.from({ length: redRowsCount }).map((_, layerIdx) => (
+                  <div key={layerIdx} className="flex items-center gap-3">
+                    <Label className="w-32 text-sm">
+                      Layer {layerIdx + 1}: {layerLabels[layerIdx] || `Q${layerIdx + 1}`}
+                    </Label>
+                    <input
+                      type="color"
+                      value={layerColors[layerIdx] || defaultColors[layerIdx]}
+                      onChange={(e) => {
+                        const newColors = [...layerColors];
+                        newColors[layerIdx] = e.target.value;
+                        setLayerColors(newColors);
+                      }}
+                      className="h-10 w-20 rounded border border-input cursor-pointer"
+                      data-testid={`color-picker-layer-${layerIdx}`}
+                    />
+                    <span className="text-sm text-muted-foreground font-mono">
+                      {layerColors[layerIdx] || defaultColors[layerIdx]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 

@@ -175,6 +175,8 @@ export default function PublicBoard() {
               leftAxisNumbers={contest.leftAxisNumbers}
               layerLabels={contest.layerLabels || undefined}
               showRedHeaders={contest.showRedHeaders}
+              headerColorsEnabled={(contest as any).headerColorsEnabled ?? true}
+              layerColors={(contest as any).layerColors}
               squares={squares}
               prizes={contest.prizes || []}
               winners={contest.winners || []}

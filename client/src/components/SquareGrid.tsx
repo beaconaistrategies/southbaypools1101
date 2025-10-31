@@ -19,6 +19,8 @@ interface SquareGridProps {
   leftAxisNumbers: number[][];
   layerLabels?: string[];
   showRedHeaders?: boolean;
+  headerColorsEnabled?: boolean;
+  layerColors?: string[];
   squares: Square[];
   prizes?: Prize[];
   winners?: Winner[];
@@ -33,6 +35,8 @@ export default function SquareGrid({
   leftAxisNumbers,
   layerLabels,
   showRedHeaders = false,
+  headerColorsEnabled = true,
+  layerColors,
   squares,
   prizes = [],
   winners = [],
@@ -43,30 +47,56 @@ export default function SquareGrid({
 
   const redHeadersCount = topAxisNumbers.length;
 
-  // Color mapping for different layers - using distinct hues
-  const getLayerColor = (layerIdx: number): string => {
-    const colors = [
-      "bg-rose-200/80 dark:bg-rose-900/40",      // Layer 0: Rose
-      "bg-blue-200/80 dark:bg-blue-900/40",      // Layer 1: Blue
-      "bg-amber-200/80 dark:bg-amber-900/40",    // Layer 2: Amber
-      "bg-emerald-200/80 dark:bg-emerald-900/40", // Layer 3: Emerald
-      "bg-purple-200/80 dark:bg-purple-900/40",  // Layer 4: Purple
-      "bg-cyan-200/80 dark:bg-cyan-900/40",      // Layer 5: Cyan
-    ];
-    return colors[layerIdx] || colors[0];
+  // Default colors for layers
+  const defaultColors = ["#fda4af", "#93c5fd", "#fcd34d", "#6ee7b7", "#c084fc", "#67e8f9"];
+
+  // Convert hex color to Tailwind-compatible background style
+  const hexToRgb = (hex: string): string => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (!result) return "0, 0, 0";
+    return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
   };
 
-  // Get badge color that matches layer color
-  const getLayerBadgeColor = (layerIdx: number): string => {
-    const badgeColors = [
-      "bg-rose-600 hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800",      // Layer 0: Rose
-      "bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800",      // Layer 1: Blue
-      "bg-amber-600 hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-800",  // Layer 2: Amber
-      "bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800", // Layer 3: Emerald
-      "bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-800",  // Layer 4: Purple
-      "bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-800",      // Layer 5: Cyan
-    ];
-    return badgeColors[layerIdx] || badgeColors[0];
+  // Get layer color with customization support
+  const getLayerColor = (layerIdx: number): string => {
+    if (!headerColorsEnabled) {
+      return ""; // No color when disabled
+    }
+    
+    // Use custom colors if provided, otherwise use defaults
+    const colorHex = layerColors?.[layerIdx] || defaultColors[layerIdx] || defaultColors[0];
+    return `bg-[${colorHex}]/80`;
+  };
+
+  // Get layer color as inline style (for custom hex colors)
+  const getLayerStyle = (layerIdx: number): React.CSSProperties => {
+    if (!headerColorsEnabled) {
+      return {};
+    }
+    
+    const colorHex = layerColors?.[layerIdx] || defaultColors[layerIdx] || defaultColors[0];
+    const rgb = hexToRgb(colorHex);
+    return {
+      backgroundColor: `rgba(${rgb}, 0.8)`,
+    };
+  };
+
+  // Get badge style that matches layer color (darker shade for badges)
+  const getLayerBadgeStyle = (layerIdx: number): React.CSSProperties => {
+    if (!headerColorsEnabled) {
+      return {}; // Use default badge styling when colors disabled
+    }
+    
+    const colorHex = layerColors?.[layerIdx] || defaultColors[layerIdx] || defaultColors[0];
+    // Darken the color for badges (reduce lightness by converting to darker shade)
+    const rgb = hexToRgb(colorHex);
+    const [r, g, b] = rgb.split(', ').map(v => parseInt(v));
+    // Darken by multiplying by 0.6
+    const darkRgb = `${Math.floor(r * 0.6)}, ${Math.floor(g * 0.6)}, ${Math.floor(b * 0.6)}`;
+    return {
+      backgroundColor: `rgb(${darkRgb})`,
+      color: 'white',
+    };
   };
 
   // Check if a square is a winner and get its prize index
@@ -102,18 +132,18 @@ export default function SquareGrid({
     
     // Winner squares use layer color matching the prize
     const borderClass = isWinner ? "border-2" : "border-border";
-    const bgClass = isWinner
-      ? getLayerColor(winnerInfo.prizeIndex)
-      : isTaken 
-        ? "bg-muted" 
-        : isDisabled 
-          ? "bg-muted/40" 
-          : "bg-background";
+    const bgClass = !isWinner 
+      ? (isTaken ? "bg-muted" : isDisabled ? "bg-muted/40" : "bg-background")
+      : "";
     const hoverClass = !readOnly && isAvailable ? "hover-elevate active-elevate-2" : "";
+    
+    // Get inline style for winner background
+    const winnerStyle = isWinner ? getLayerStyle(winnerInfo.prizeIndex) : {};
     
     return (
       <div 
         className={`${baseClasses} ${cursorClass} ${bgClass} ${borderClass} ${hoverClass}`}
+        style={winnerStyle}
         onClick={() => handleSquareClick(square)}
         onMouseEnter={() => setHoveredSquare(square.index)}
         onMouseLeave={() => setHoveredSquare(null)}
@@ -123,7 +153,11 @@ export default function SquareGrid({
           {square.index}
         </span>
         {isWinner && (
-          <Badge variant="default" className={`absolute top-1 right-1 text-xs ${getLayerBadgeColor(winnerInfo.prizeIndex)}`}>
+          <Badge 
+            variant="default" 
+            className="absolute top-1 right-1 text-xs"
+            style={getLayerBadgeStyle(winnerInfo.prizeIndex)}
+          >
             {winnerInfo.label}
           </Badge>
         )}
@@ -169,19 +203,23 @@ export default function SquareGrid({
           >
             {/* Top-left corner: redHeadersCount x redHeadersCount area */}
             {/* Labels placed diagonally - Q1 at (1,1), Q2 at (2,2), Q3 at (3,3), etc. */}
+            {/* Colors: entire row 0 and column 0 are Layer 0 color, creating L-shaped color bands */}
             {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
               <Fragment key={`corner-row-${rowIdx + 1}`}>
                 {Array.from({ length: redHeadersCount }).map((_, colIdx) => {
                   const isDiagonal = rowIdx === colIdx;
                   const label = isDiagonal ? layerLabels?.[rowIdx] : null;
+                  // Use min(rowIdx, colIdx) so row 0 and column 0 are both Layer 0 color
+                  const layerIndex = Math.min(rowIdx, colIdx);
                   
                   return (
                     <div 
                       key={`corner-cell-${rowIdx + 1}-${colIdx + 1}`}
-                      className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
+                      className="border border-border flex items-center justify-center min-h-[50px]"
                       style={{
                         gridColumn: `${colIdx + 1} / span 1`,
-                        gridRow: `${rowIdx + 1} / span 1`
+                        gridRow: `${rowIdx + 1} / span 1`,
+                        ...getLayerStyle(layerIndex)
                       }}
                       data-testid={isDiagonal ? `corner-layer-${rowIdx}` : undefined}
                     >
@@ -202,7 +240,8 @@ export default function SquareGrid({
                 {topAxisNumbers[rowIdx].map((num, colIdx) => (
                   <div 
                     key={`top-header-${rowIdx}-${colIdx}`}
-                    className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
+                    className="border border-border flex items-center justify-center min-h-[50px]"
+                    style={getLayerStyle(rowIdx)}
                     data-testid={`header-top-layer${rowIdx}-col${colIdx}`}
                   >
                     {showRedHeaders && (
@@ -220,7 +259,8 @@ export default function SquareGrid({
                 {Array.from({ length: redHeadersCount }).map((_, layerIdx) => (
                   <div 
                     key={`left-header-${layerIdx}-${rowIdx}`}
-                    className={`border border-border ${getLayerColor(layerIdx)} flex flex-col items-center justify-center min-h-[50px] gap-1`}
+                    className="border border-border flex flex-col items-center justify-center min-h-[50px] gap-1"
+                    style={getLayerStyle(layerIdx)}
                     data-testid={`header-left-layer${layerIdx}-row${rowIdx}`}
                   >
                     {showRedHeaders && (
