@@ -168,41 +168,31 @@ export default function SquareGrid({
             }}
           >
             {/* Top-left corner: redHeadersCount x redHeadersCount area */}
-            {/* Column 1: Labels stacked vertically - use layerLabels for period names */}
-            {Array.from({ length: redHeadersCount }).map((_, rowIdx) => {
-              const label = layerLabels?.[rowIdx];
-              return (
-                <div 
-                  key={`corner-label-${rowIdx}`}
-                  className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
-                  style={{
-                    gridColumn: `1 / span 1`,
-                    gridRow: `${rowIdx + 1} / span 1`
-                  }}
-                  data-testid={`corner-layer-${rowIdx}`}
-                >
-                  {label && (
-                    <span className="text-lg font-mono font-bold">
-                      {label}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            
-            {/* Columns 2+: Colored filler cells to complete the corner square */}
+            {/* Labels placed diagonally - Q1 at (1,1), Q2 at (2,2), Q3 at (3,3), etc. */}
             {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
               <Fragment key={`corner-row-${rowIdx + 1}`}>
-                {Array.from({ length: redHeadersCount - 1 }).map((_, colOffset) => (
-                  <div 
-                    key={`corner-cell-${rowIdx + 1}-${colOffset + 2}`}
-                    className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
-                    style={{
-                      gridColumn: `${colOffset + 2} / span 1`,
-                      gridRow: `${rowIdx + 1} / span 1`
-                    }}
-                  />
-                ))}
+                {Array.from({ length: redHeadersCount }).map((_, colIdx) => {
+                  const isDiagonal = rowIdx === colIdx;
+                  const label = isDiagonal ? layerLabels?.[rowIdx] : null;
+                  
+                  return (
+                    <div 
+                      key={`corner-cell-${rowIdx + 1}-${colIdx + 1}`}
+                      className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
+                      style={{
+                        gridColumn: `${colIdx + 1} / span 1`,
+                        gridRow: `${rowIdx + 1} / span 1`
+                      }}
+                      data-testid={isDiagonal ? `corner-layer-${rowIdx}` : undefined}
+                    >
+                      {label && (
+                        <span className="text-lg font-mono font-bold">
+                          {label}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </Fragment>
             ))}
 

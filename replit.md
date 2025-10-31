@@ -12,7 +12,7 @@ SquareKeeper is a football squares pool management system that enables administr
 - **Unified Layer Labels**: Consolidated topLayerLabels and leftLayerLabels into single layerLabels field
 - **Schema Migration**: Added layer_labels column, migrated existing data, dropped deprecated columns
 - **UX Improvement**: Layer labels now input once in top axis section, eliminating duplicate/confusing inputs
-- **Vertical Display**: Layer labels render vertically in leftmost column of pink corner area
+- **Diagonal Display**: Layer labels render diagonally in pink corner area (Q1 at position 1,1; Q2 at 2,2; Q3 at 3,3; Q4 at 4,4)
 - **Complete Update**: Updated all components (ContestForm, SquareGrid, ContestManager, PublicBoard, EditContest, CSV export, clone endpoint)
 - **Type Safety**: Maintained strong typing throughout with updated Zod schemas and TypeScript types
 - **Design Rationale**: Both axes represent same payout periods (e.g., Q1, Q2, Q3, Q4), so single unified field eliminates redundancy
