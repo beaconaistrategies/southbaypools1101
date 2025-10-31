@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a contest with initial squares
   app.post("/api/contests", async (req, res) => {
     try {
-      console.log("POST /api/contests - Request body webhookUrl:", req.body.webhookUrl);
+      console.log("POST /api/contests - Full request body:", JSON.stringify(req.body, null, 2));
       
       // Validate contest data
       const contestData = insertContestSchema.parse({
@@ -58,12 +58,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         eventDate: new Date(req.body.eventDate),
       });
       
-      console.log("POST /api/contests - After schema validation webhookUrl:", contestData.webhookUrl);
+      console.log("POST /api/contests - After schema validation:", JSON.stringify(contestData, null, 2));
       
       // Create the contest
       const contest = await storage.createContest(contestData);
       
-      console.log("POST /api/contests - Created contest webhookUrl:", contest.webhookUrl);
+      console.log("POST /api/contests - Created contest successfully");
       
       // Get available squares from request body (default to all 100)
       const availableSquares = req.body.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1);
@@ -85,10 +85,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(contest);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.log("POST /api/contests - Zod validation error:", error.errors);
+        console.error("POST /api/contests - Zod validation error:", JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ error: "Invalid contest data", details: error.errors });
       }
       console.error("Error creating contest:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
       res.status(500).json({ error: "Failed to create contest" });
     }
   });
