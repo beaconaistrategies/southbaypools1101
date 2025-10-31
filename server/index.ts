@@ -16,15 +16,6 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-// Log ALL requests before anything else
-app.use((req, res, next) => {
-  console.log(`[REQUEST] ${req.method} ${req.path}`);
-  if (req.method === 'POST' && req.path.startsWith('/api')) {
-    console.log(`[REQUEST BODY] ${JSON.stringify(req.body)}`);
-  }
-  next();
-});
-
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

@@ -150,7 +150,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const submissionData = {
+    onSubmit({
       name,
       eventDate,
       topTeam,
@@ -165,9 +165,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       status: isOpen ? "open" : "locked",
       availableSquares,
       prizes
-    };
-    console.log("ContestForm submitting data:", JSON.stringify(submissionData, null, 2));
-    onSubmit(submissionData);
+    });
   };
 
   return (
