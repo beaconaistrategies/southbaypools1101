@@ -150,10 +150,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("ContestForm submit - webhookUrl value:", webhookUrl);
-    console.log("ContestForm submit - webhookUrl trimmed:", webhookUrl.trim());
-    console.log("ContestForm submit - final value:", webhookUrl.trim() || undefined);
-    onSubmit({
+    const submissionData = {
       name,
       eventDate,
       topTeam,
@@ -168,7 +165,9 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       status: isOpen ? "open" : "locked",
       availableSquares,
       prizes
-    });
+    };
+    console.log("ContestForm submitting data:", JSON.stringify(submissionData, null, 2));
+    onSubmit(submissionData);
   };
 
   return (
