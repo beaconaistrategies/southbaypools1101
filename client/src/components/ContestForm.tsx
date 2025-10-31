@@ -253,7 +253,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               data-testid="input-webhook-url"
             />
             <p className="text-sm text-muted-foreground">
-              Enter your n8n webhook URL to send email notifications when participants claim squares. This will trigger Go High Level to send confirmation emails.
+              Enter your n8n webhook URL to send email notifications when participants claim squares. Your n8n workflow can then send confirmation emails via Gmail.
             </p>
           </div>
         </div>
