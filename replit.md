@@ -8,6 +8,17 @@ SquareKeeper is a football squares pool management system that enables administr
 
 ## Recent Changes
 
+### October 31, 2025 - Folder Organization System & Enhanced Contest Management
+- **Folder/Category System**: Added optional folder organization for contests with database schema (folders table, folderId in contests)
+- **Folder Management UI**: Create Folder button in Admin Dashboard with name input dialog and folder listing
+- **Folder Filtering**: Dropdown filter on Admin Dashboard to view "All Contests", specific folders, or "Uncategorized" contests
+- **Folder Selector**: ContestForm includes folder selector dropdown for assigning contests to folders during creation/editing
+- **Optional Assignment**: Contests can be assigned to folders or left uncategorized; folder assignment is completely optional
+- **Edit Contest Enhancements**: Added Delete Contest and Export CSV buttons directly on Edit Contest page for easier management
+- **Critical Fix**: Resolved validation bug where form sent `null` instead of `undefined` for empty folderId, causing contest creation/editing failures
+- **API Endpoints**: Implemented folder CRUD operations (GET /api/folders, POST /api/folders) and CSV export endpoint
+- **End-to-End Verified**: Complete folder workflow tested (create folder → assign to contest → filter by folder → edit/delete)
+
 ### October 26, 2025 - Email Notifications & User Dashboard
 - **Webhook Integration**: Optional n8n webhook URL field in contest form triggers notifications when squares are claimed
 - **Notification Payload**: Sends contest details, participant info (name, email, entry name), square number, and event details
@@ -120,7 +131,8 @@ Preferred communication style: Simple, everyday language.
 
 **Data Models:**
 - **Users:** Admin authentication (id, username, password)
-- **Contests:** Contest configuration including teams, axis numbers, red header settings, status, and quarter winners
+- **Folders:** Optional organizational categories for contests (id, name)
+- **Contests:** Contest configuration including teams, axis numbers, red header settings, status, optional folder assignment, and quarter winners
 - **Squares:** Individual square state within contests (100 per contest, indexed 1-100) with holder information and reservation status
 
 **Key Architectural Decisions:**
