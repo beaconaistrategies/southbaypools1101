@@ -170,18 +170,18 @@ export default function SquareGrid({
             }}
           >
             {/* Top-left corner: redHeadersCount x redHeadersCount area */}
-            {/* Row 1: Labels in each column - use topLayerLabels for period names */}
-            {Array.from({ length: redHeadersCount }).map((_, layerIdx) => {
-              const label = topLayerLabels?.[layerIdx] || leftLayerLabels?.[layerIdx];
+            {/* Column 1: Labels stacked vertically - use topLayerLabels or leftLayerLabels for period names */}
+            {Array.from({ length: redHeadersCount }).map((_, rowIdx) => {
+              const label = topLayerLabels?.[rowIdx] || leftLayerLabels?.[rowIdx];
               return (
                 <div 
-                  key={`corner-label-${layerIdx}`}
-                  className={`border border-border ${getLayerColor(layerIdx)} flex items-center justify-center min-h-[50px]`}
+                  key={`corner-label-${rowIdx}`}
+                  className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
                   style={{
-                    gridColumn: `${layerIdx + 1} / span 1`,
-                    gridRow: `1 / span 1`
+                    gridColumn: `1 / span 1`,
+                    gridRow: `${rowIdx + 1} / span 1`
                   }}
-                  data-testid={`corner-layer-${layerIdx}`}
+                  data-testid={`corner-layer-${rowIdx}`}
                 >
                   {label && (
                     <span className="text-lg font-mono font-bold">
@@ -192,16 +192,16 @@ export default function SquareGrid({
               );
             })}
             
-            {/* Rows 2+: Colored filler cells to complete the corner square */}
-            {Array.from({ length: redHeadersCount - 1 }).map((_, rowOffset) => (
-              <Fragment key={`corner-row-${rowOffset + 2}`}>
-                {Array.from({ length: redHeadersCount }).map((_, colIdx) => (
+            {/* Columns 2+: Colored filler cells to complete the corner square */}
+            {Array.from({ length: redHeadersCount }).map((_, rowIdx) => (
+              <Fragment key={`corner-row-${rowIdx + 1}`}>
+                {Array.from({ length: redHeadersCount - 1 }).map((_, colOffset) => (
                   <div 
-                    key={`corner-cell-${rowOffset + 2}-${colIdx}`}
-                    className={`border border-border ${getLayerColor(colIdx)} flex items-center justify-center min-h-[50px]`}
+                    key={`corner-cell-${rowIdx + 1}-${colOffset + 2}`}
+                    className={`border border-border ${getLayerColor(rowIdx)} flex items-center justify-center min-h-[50px]`}
                     style={{
-                      gridColumn: `${colIdx + 1} / span 1`,
-                      gridRow: `${rowOffset + 2} / span 1`
+                      gridColumn: `${colOffset + 2} / span 1`,
+                      gridRow: `${rowIdx + 1} / span 1`
                     }}
                   />
                 ))}
