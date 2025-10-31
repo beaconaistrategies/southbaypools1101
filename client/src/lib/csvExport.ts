@@ -70,12 +70,12 @@ export function exportContestToCSV(contest: Contest, squares: Square[]): void {
   csvRows.push('Axis,Layer,Numbers');
   
   contest.topAxisNumbers.forEach((layer, index) => {
-    const label = contest.topLayerLabels?.[index] || `Layer ${index + 1}`;
+    const label = contest.layerLabels?.[index] || `Layer ${index + 1}`;
     csvRows.push(`Top,${escapeCSV(label)},${layer.join('-')}`);
   });
   
   contest.leftAxisNumbers.forEach((layer, index) => {
-    const label = contest.leftLayerLabels?.[index] || `Layer ${index + 1}`;
+    const label = contest.layerLabels?.[index] || `Layer ${index + 1}`;
     csvRows.push(`Left,${escapeCSV(label)},${layer.join('-')}`);
   });
 

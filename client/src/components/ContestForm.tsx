@@ -24,8 +24,7 @@ interface ContestFormProps {
     folderId?: string | null;
     topAxisNumbers: number[][];
     leftAxisNumbers: number[][];
-    topLayerLabels?: string[];
-    leftLayerLabels?: string[];
+    layerLabels?: string[];
     redRowsCount: number;
     status: string;
     availableSquares: number[];
@@ -60,11 +59,8 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [leftAxisNumbers, setLeftAxisNumbers] = useState<number[][]>(
     initialData?.leftAxisNumbers || generateDefaultLayers(redRowsCount)
   );
-  const [topLayerLabels, setTopLayerLabels] = useState<string[]>(
-    initialData?.topLayerLabels || []
-  );
-  const [leftLayerLabels, setLeftLayerLabels] = useState<string[]>(
-    initialData?.leftLayerLabels || []
+  const [layerLabels, setLayerLabels] = useState<string[]>(
+    initialData?.layerLabels || []
   );
   const [isOpen, setIsOpen] = useState(initialData?.status === "open" || initialData?.status === undefined);
   const [availableSquares, setAvailableSquares] = useState<number[]>(
@@ -80,14 +76,12 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
     if (preset === "quarters") {
       setRedRowsCount(4);
       const labels = ["Q1", "Q2", "Q3", "Q4"];
-      setTopLayerLabels(labels);
-      setLeftLayerLabels(labels);
+      setLayerLabels(labels);
       setPrizes(labels.map(label => ({ label, amount: "" })));
     } else if (preset === "halves") {
       setRedRowsCount(2);
       const labels = ["Half", "Final"];
-      setTopLayerLabels(labels);
-      setLeftLayerLabels(labels);
+      setLayerLabels(labels);
       setPrizes(labels.map(label => ({ label, amount: "" })));
     }
     // "custom" preset doesn't force any changes
@@ -169,8 +163,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       folderId: folderId || undefined,
       topAxisNumbers,
       leftAxisNumbers,
-      topLayerLabels: topLayerLabels.filter(l => l.trim()),
-      leftLayerLabels: leftLayerLabels.filter(l => l.trim()),
+      layerLabels: layerLabels.filter(l => l.trim()),
       redRowsCount,
       status: isOpen ? "open" : "locked",
       availableSquares,
@@ -357,7 +350,24 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
           {topAxisNumbers.map((layer, layerIdx) => (
             <div key={layerIdx} className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Layer {layerIdx + 1} (e.g., Q{layerIdx + 1})</Label>
+                <div className="flex items-center gap-2">
+                  <Label>Layer {layerIdx + 1}</Label>
+                  <Input
+                    value={layerLabels[layerIdx] || ""}
+                    onChange={(e) => {
+                      const newLabels = [...layerLabels];
+                      newLabels[layerIdx] = e.target.value;
+                      setLayerLabels(newLabels);
+                      if (payoutPreset !== "custom") {
+                        setPayoutPreset("custom");
+                      }
+                    }}
+                    placeholder={`Layer ${layerIdx + 1} label (e.g., Q${layerIdx + 1})`}
+                    className="w-32"
+                    data-testid={`input-layer-label-${layerIdx}`}
+                    disabled={payoutPreset !== "custom"}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
@@ -369,21 +379,6 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
                   Shuffle
                 </Button>
               </div>
-              <Input
-                value={topLayerLabels[layerIdx] || ""}
-                onChange={(e) => {
-                  const newLabels = [...topLayerLabels];
-                  newLabels[layerIdx] = e.target.value;
-                  setTopLayerLabels(newLabels);
-                  if (payoutPreset !== "custom") {
-                    setPayoutPreset("custom");
-                  }
-                }}
-                placeholder={`Layer ${layerIdx + 1} label (e.g., Q${layerIdx + 1})`}
-                className="mb-2"
-                data-testid={`input-top-layer-label-${layerIdx}`}
-                disabled={payoutPreset !== "custom"}
-              />
               <div className="grid grid-cols-10 gap-2">
                 {layer.map((num, numIdx) => (
                   <Input
@@ -426,7 +421,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
           {leftAxisNumbers.map((layer, layerIdx) => (
             <div key={layerIdx} className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Layer {layerIdx + 1} (e.g., Q{layerIdx + 1})</Label>
+                <Label>Layer {layerIdx + 1}: {layerLabels[layerIdx] || `Q${layerIdx + 1}`}</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -438,21 +433,6 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
                   Shuffle
                 </Button>
               </div>
-              <Input
-                value={leftLayerLabels[layerIdx] || ""}
-                onChange={(e) => {
-                  const newLabels = [...leftLayerLabels];
-                  newLabels[layerIdx] = e.target.value;
-                  setLeftLayerLabels(newLabels);
-                  if (payoutPreset !== "custom") {
-                    setPayoutPreset("custom");
-                  }
-                }}
-                placeholder={`Layer ${layerIdx + 1} label (e.g., Q${layerIdx + 1})`}
-                className="mb-2"
-                data-testid={`input-left-layer-label-${layerIdx}`}
-                disabled={payoutPreset !== "custom"}
-              />
               <div className="grid grid-cols-10 gap-2">
                 {layer.map((num, numIdx) => (
                   <Input

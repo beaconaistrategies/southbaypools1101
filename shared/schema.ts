@@ -55,8 +55,7 @@ export const contests = pgTable("contests", {
   folderId: varchar("folder_id").references(() => folders.id, { onDelete: "set null" }),
   topAxisNumbers: jsonb("top_axis_numbers").notNull().$type<number[][]>(),
   leftAxisNumbers: jsonb("left_axis_numbers").notNull().$type<number[][]>(),
-  topLayerLabels: jsonb("top_layer_labels").$type<string[]>(),
-  leftLayerLabels: jsonb("left_layer_labels").$type<string[]>(),
+  layerLabels: jsonb("layer_labels").$type<string[]>(),
   redRowsCount: integer("red_rows_count").notNull().default(2),
   showRedHeaders: boolean("show_red_headers").notNull().default(false),
   status: contestStatusEnum("status").notNull().default("open"),
@@ -76,8 +75,7 @@ const baseContestSchema = createInsertSchema(contests).omit({
 }).extend({
   topAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   leftAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
-  topLayerLabels: z.array(z.string()).optional(),
-  leftLayerLabels: z.array(z.string()).optional(),
+  layerLabels: z.array(z.string()).optional(),
   redRowsCount: z.number().min(1).max(6),
   status: z.enum(["open", "locked"]).optional(),
 });

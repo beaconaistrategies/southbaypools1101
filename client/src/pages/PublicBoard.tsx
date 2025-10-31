@@ -173,8 +173,7 @@ export default function PublicBoard() {
               leftTeam={contest.leftTeam}
               topAxisNumbers={contest.topAxisNumbers}
               leftAxisNumbers={contest.leftAxisNumbers}
-              topLayerLabels={contest.topLayerLabels || undefined}
-              leftLayerLabels={contest.leftLayerLabels || undefined}
+              layerLabels={contest.layerLabels || undefined}
               showRedHeaders={contest.showRedHeaders}
               squares={squares}
               prizes={contest.prizes || []}

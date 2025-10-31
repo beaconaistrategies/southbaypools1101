@@ -17,8 +17,7 @@ interface SquareGridProps {
   leftTeam: string;
   topAxisNumbers: number[][];
   leftAxisNumbers: number[][];
-  topLayerLabels?: string[];
-  leftLayerLabels?: string[];
+  layerLabels?: string[];
   showRedHeaders?: boolean;
   squares: Square[];
   prizes?: Prize[];
@@ -32,8 +31,7 @@ export default function SquareGrid({
   leftTeam,
   topAxisNumbers,
   leftAxisNumbers,
-  topLayerLabels,
-  leftLayerLabels,
+  layerLabels,
   showRedHeaders = false,
   squares,
   prizes = [],
@@ -170,9 +168,9 @@ export default function SquareGrid({
             }}
           >
             {/* Top-left corner: redHeadersCount x redHeadersCount area */}
-            {/* Column 1: Labels stacked vertically - use topLayerLabels or leftLayerLabels for period names */}
+            {/* Column 1: Labels stacked vertically - use layerLabels for period names */}
             {Array.from({ length: redHeadersCount }).map((_, rowIdx) => {
-              const label = topLayerLabels?.[rowIdx] || leftLayerLabels?.[rowIdx];
+              const label = layerLabels?.[rowIdx];
               return (
                 <div 
                   key={`corner-label-${rowIdx}`}
