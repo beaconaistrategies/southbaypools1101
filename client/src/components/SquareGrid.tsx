@@ -116,7 +116,8 @@ export default function SquareGrid({
   };
 
   const handleSquareClick = (square: Square) => {
-    if (readOnly || square.status === "disabled") return;
+    if (square.status === "disabled") return;
+    if (readOnly) return;
     onSquareClick?.(square);
   };
 
@@ -128,14 +129,14 @@ export default function SquareGrid({
     const isWinner = !!winnerInfo;
     
     const baseClasses = "relative flex flex-col items-center justify-center min-h-[50px] border text-center transition-all";
-    const cursorClass = readOnly || isDisabled ? "cursor-default" : (isAvailable ? "cursor-pointer" : "cursor-default");
+    const cursorClass = readOnly || isDisabled ? "cursor-default" : "cursor-pointer";
     
     // Winner squares use layer color matching the prize
     const borderClass = isWinner ? "border-2" : "border-border";
     const bgClass = !isWinner 
       ? (isTaken ? "bg-muted" : isDisabled ? "bg-muted/40" : "bg-background")
       : "";
-    const hoverClass = !readOnly && isAvailable ? "hover-elevate active-elevate-2" : "";
+    const hoverClass = !readOnly && (isAvailable || isTaken) ? "hover-elevate active-elevate-2" : "";
     
     // Get inline style for winner background
     const winnerStyle = isWinner ? getLayerStyle(winnerInfo.prizeIndex) : {};

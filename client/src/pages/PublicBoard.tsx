@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
+import { User, Shuffle } from "lucide-react";
 import SquareGrid from "@/components/SquareGrid";
 import ClaimSquareModal from "@/components/ClaimSquareModal";
 import WinnersPanel from "@/components/WinnersPanel";
@@ -16,6 +16,7 @@ export default function PublicBoard() {
   const params = useParams();
   const contestId = params.id || "1";
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
+  const [showRandomClaimModal, setShowRandomClaimModal] = useState(false);
 
   // Fetch contest data
   const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
@@ -95,6 +96,55 @@ export default function PublicBoard() {
     }
   };
 
+  const randomClaimMutation = useMutation({
+    mutationFn: async (data: { holderName: string; holderEmail: string; entryName: string }) => {
+      const response = await apiRequest("POST", `/api/contests/${contestId}/squares/random`, data);
+      return response.json();
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
+      toast({
+        title: "Square Assigned",
+        description: `Square #${result.squareNumber} has been randomly assigned to ${result.entryName}`,
+      });
+      setShowRandomClaimModal(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to assign random square. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRandomClaim = (data: { holderName: string; holderEmail: string; entryName: string }) => {
+    randomClaimMutation.mutate(data);
+  };
+
+  const handleRandomButtonClick = () => {
+    if (contest?.status === "locked") {
+      toast({
+        title: "Contest Locked",
+        description: "This contest is no longer accepting new picks.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (availableCount === 0) {
+      toast({
+        title: "No Squares Available",
+        description: "All squares have been claimed.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setShowRandomClaimModal(true);
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -146,15 +196,29 @@ export default function PublicBoard() {
             </div>
           </div>
           
-          <div className="flex gap-6 text-sm">
-            <div>
-              <span className="text-muted-foreground">Taken: </span>
-              <span className="font-medium">{takenCount}</span>
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex gap-6 text-sm">
+              <div>
+                <span className="text-muted-foreground">Taken: </span>
+                <span className="font-medium">{takenCount}</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Available: </span>
+                <span className="font-medium">{availableCount}</span>
+              </div>
             </div>
-            <div>
-              <span className="text-muted-foreground">Available: </span>
-              <span className="font-medium">{availableCount}</span>
-            </div>
+            
+            {contest.status === "open" && availableCount > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleRandomButtonClick}
+                data-testid="button-random-square"
+              >
+                <Shuffle className="h-4 w-4 mr-2" />
+                Random Square
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -210,6 +274,14 @@ export default function PublicBoard() {
         onOpenChange={(open) => !open && setSelectedSquare(null)}
         squareNumber={selectedSquare || 0}
         onConfirm={handleClaimSquare}
+      />
+
+      <ClaimSquareModal
+        open={showRandomClaimModal}
+        onOpenChange={setShowRandomClaimModal}
+        squareNumber={0}
+        onConfirm={handleRandomClaim}
+        isRandom={true}
       />
     </div>
   );

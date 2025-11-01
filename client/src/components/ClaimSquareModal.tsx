@@ -16,13 +16,15 @@ interface ClaimSquareModalProps {
   onOpenChange: (open: boolean) => void;
   squareNumber: number;
   onConfirm: (data: { holderName: string; holderEmail: string; entryName: string }) => void;
+  isRandom?: boolean;
 }
 
 export default function ClaimSquareModal({
   open,
   onOpenChange,
   squareNumber,
-  onConfirm
+  onConfirm,
+  isRandom = false
 }: ClaimSquareModalProps) {
   const [holderName, setHolderName] = useState("");
   const [holderEmail, setHolderEmail] = useState("");
@@ -73,10 +75,12 @@ export default function ClaimSquareModal({
       <DialogContent className="sm:max-w-md" data-testid="modal-claim-square">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            Claim Square #{squareNumber}
+            {isRandom ? "Claim Random Square" : `Claim Square #${squareNumber}`}
           </DialogTitle>
           <DialogDescription>
-            Enter your information to reserve this square
+            {isRandom 
+              ? "A random available square will be assigned to you" 
+              : "Enter your information to reserve this square"}
           </DialogDescription>
         </DialogHeader>
         

@@ -336,6 +336,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Random square assignment
+  app.post("/api/contests/:id/squares/random", async (req, res) => {
+    try {
+      const contest = await storage.getContest(req.params.id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      if (contest.status === "locked") {
+        return res.status(400).json({ error: "Contest is locked" });
+      }
+
+      // Get all available squares
+      const squares = await storage.getContestSquares(req.params.id);
+      const availableSquares = squares.filter(s => s.status === "available");
+
+      if (availableSquares.length === 0) {
+        return res.status(400).json({ error: "No available squares" });
+      }
+
+      // Pick a random available square
+      const randomSquare = availableSquares[Math.floor(Math.random() * availableSquares.length)];
+
+      // Validate participant data
+      const schema = z.object({
+        holderName: z.string().min(1),
+        holderEmail: z.string().email(),
+        entryName: z.string().min(1),
+      });
+      const participantData = schema.parse(req.body);
+
+      // Claim the random square
+      const claimedSquare = await storage.updateSquareByContestAndIndex(
+        req.params.id,
+        randomSquare.index,
+        {
+          status: "taken",
+          ...participantData,
+        }
+      );
+
+      if (!claimedSquare) {
+        return res.status(500).json({ error: "Failed to claim square" });
+      }
+
+      // Send webhook notification
+      if (contest.webhookUrl) {
+        sendWebhookNotification(contest.webhookUrl, {
+          contestName: contest.name,
+          contestId: contest.id,
+          entryName: participantData.entryName,
+          holderEmail: participantData.holderEmail,
+          holderName: participantData.holderName,
+          squareNumber: claimedSquare.index,
+          topTeam: contest.topTeam,
+          leftTeam: contest.leftTeam,
+          eventDate: contest.eventDate.toISOString(),
+        }).catch(err => console.error("Webhook notification failed:", err));
+      }
+
+      res.json({
+        squareNumber: claimedSquare.index,
+        entryName: participantData.entryName,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid participant data", details: error.errors });
+      }
+      console.error("Error assigning random square:", error);
+      res.status(500).json({ error: "Failed to assign random square" });
+    }
+  });
+
   // Folder routes
   
   // Get all folders

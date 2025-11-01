@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
-import { ArrowLeft, Download, Trash2, Copy, Link as LinkIcon, ExternalLink, Zap } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Copy, Link as LinkIcon, ExternalLink, Zap, Edit } from "lucide-react";
 import WinnersPanel from "@/components/WinnersPanel";
 import PrizesEditor from "@/components/PrizesEditor";
 import StatusBadge from "@/components/StatusBadge";
@@ -20,6 +20,14 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportContestToCSV } from "@/lib/csvExport";
 import type { Contest, Square, Prize, Winner } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function ContestManager() {
   const { toast } = useToast();
@@ -32,6 +40,13 @@ export default function ContestManager() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [filter, setFilter] = useState<"all" | "available" | "taken">("all");
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [selectedSquareToAssign, setSelectedSquareToAssign] = useState<Square | null>(null);
+  const [assignForm, setAssignForm] = useState({
+    holderName: "",
+    holderEmail: "",
+    entryName: "",
+  });
 
   // Fetch contest data
   const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
@@ -167,6 +182,59 @@ export default function ContestManager() {
     }
     setShowReleaseDialog(false);
     setSelectedSquareToRelease(null);
+  };
+
+  const handleAssignSquare = (square: Square) => {
+    setSelectedSquareToAssign(square);
+    setAssignForm({
+      holderName: square.holderName || "",
+      holderEmail: square.holderEmail || "",
+      entryName: square.entryName || "",
+    });
+    setShowAssignDialog(true);
+  };
+
+  const confirmAssignSquare = () => {
+    if (!assignForm.holderName.trim() || !assignForm.holderEmail.trim() || !assignForm.entryName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "All fields are required to assign a square.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedSquareToAssign) {
+      updateSquareMutation.mutate(
+        {
+          index: selectedSquareToAssign.index,
+          data: {
+            status: "taken",
+            entryName: assignForm.entryName.trim(),
+            holderName: assignForm.holderName.trim(),
+            holderEmail: assignForm.holderEmail.trim(),
+          },
+        },
+        {
+          onSuccess: () => {
+            toast({
+              title: "Square Assigned",
+              description: `Square #${selectedSquareToAssign.index} has been assigned to ${assignForm.holderName}.`,
+            });
+            setShowAssignDialog(false);
+            setSelectedSquareToAssign(null);
+            setAssignForm({ holderName: "", holderEmail: "", entryName: "" });
+          },
+          onError: () => {
+            toast({
+              title: "Error",
+              description: "Failed to assign square. Please try again.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    }
   };
 
   const handleUpdateWinners = (winners: Winner[]) => {
@@ -480,7 +548,12 @@ export default function ContestManager() {
                 squares={squares}
                 prizes={contest.prizes || []}
                 winners={contest.winners || []}
-                readOnly={true}
+                onSquareClick={(square) => {
+                  if (square.status === "taken") {
+                    handleReleaseSquare(square.index);
+                  }
+                }}
+                readOnly={false}
               />
             </div>
           </TabsContent>
@@ -547,6 +620,19 @@ export default function ContestManager() {
                       data-testid={`button-release-${square.index}`}
                     >
                       Release Square
+                    </Button>
+                  )}
+                  
+                  {square.status === "disabled" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAssignSquare(square)}
+                      className="w-full"
+                      data-testid={`button-assign-${square.index}`}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Assign to Participant
                     </Button>
                   )}
                 </Card>
@@ -666,6 +752,66 @@ export default function ContestManager() {
         originalName={contest.name}
         onConfirm={handleCloneContest}
       />
+
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Square #{selectedSquareToAssign?.index}</DialogTitle>
+            <DialogDescription>
+              Enter participant information to assign this square.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="assign-entry-name">Entry Name</Label>
+              <Input
+                id="assign-entry-name"
+                placeholder="e.g., John's Squares"
+                value={assignForm.entryName}
+                onChange={(e) => setAssignForm({ ...assignForm, entryName: e.target.value })}
+                data-testid="input-assign-entry-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="assign-holder-name">Participant Name</Label>
+              <Input
+                id="assign-holder-name"
+                placeholder="e.g., John Doe"
+                value={assignForm.holderName}
+                onChange={(e) => setAssignForm({ ...assignForm, holderName: e.target.value })}
+                data-testid="input-assign-holder-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="assign-holder-email">Email Address</Label>
+              <Input
+                id="assign-holder-email"
+                type="email"
+                placeholder="e.g., john@example.com"
+                value={assignForm.holderEmail}
+                onChange={(e) => setAssignForm({ ...assignForm, holderEmail: e.target.value })}
+                data-testid="input-assign-holder-email"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAssignDialog(false)}
+              data-testid="button-cancel-assign"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmAssignSquare}
+              disabled={!assignForm.holderName || !assignForm.holderEmail || !assignForm.entryName}
+              data-testid="button-confirm-assign"
+            >
+              Assign Square
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
