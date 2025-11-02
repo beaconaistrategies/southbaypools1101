@@ -163,7 +163,7 @@ export default function SquareGrid({
           </Badge>
         )}
         {isTaken && square.entryName && (
-          <span className="text-xs font-medium truncate px-2 max-w-full">
+          <span className="text-xs font-medium px-2 text-center break-words hyphens-auto leading-tight">
             {square.entryName}
           </span>
         )}
