@@ -30,6 +30,7 @@ interface ContestFormProps {
     status: string;
     availableSquares: number[];
     prizes?: Prize[];
+    reservedSquares?: ReservedSquare[];
   };
   onSubmit: (data: any) => void;
   onCancel: () => void;
@@ -67,7 +68,9 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [availableSquares, setAvailableSquares] = useState<number[]>(
     initialData?.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1)
   );
-  const [reservedSquares, setReservedSquares] = useState<ReservedSquare[]>([]);
+  const [reservedSquares, setReservedSquares] = useState<ReservedSquare[]>(
+    initialData?.reservedSquares || []
+  );
   const [prizes, setPrizes] = useState<Prize[]>(initialData?.prizes || []);
   const [payoutPreset, setPayoutPreset] = useState<PayoutPreset>("custom");
   
@@ -172,6 +175,13 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Filter out reserved squares from availableSquares
+    const reservedSquareNumbers = reservedSquares.map(r => r.squareNumber);
+    const finalAvailableSquares = availableSquares.filter(
+      num => !reservedSquareNumbers.includes(num)
+    );
+    
     onSubmit({
       name,
       eventDate,
@@ -187,7 +197,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       headerColorsEnabled,
       layerColors: layerColors.slice(0, redRowsCount),
       status: isOpen ? "open" : "locked",
-      availableSquares,
+      availableSquares: finalAvailableSquares,
       reservedSquares,
       prizes
     });

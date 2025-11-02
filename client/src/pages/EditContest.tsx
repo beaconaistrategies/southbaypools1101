@@ -189,6 +189,16 @@ export default function EditContest() {
     .filter(s => s.status === "available")
     .map(s => s.index);
 
+  // Extract reserved squares (those that were pre-assigned with status="taken")
+  const reservedSquares = squares
+    .filter(s => s.status === "taken" && s.entryName && s.holderName && s.holderEmail)
+    .map(s => ({
+      squareNumber: s.index,
+      entryName: s.entryName || "",
+      holderName: s.holderName || "",
+      holderEmail: s.holderEmail || "",
+    }));
+
   // Convert eventDate to YYYY-MM-DD format for the input
   const eventDateString = new Date(contest.eventDate).toISOString().split('T')[0];
 
@@ -207,6 +217,7 @@ export default function EditContest() {
     status: contest.status,
     availableSquares,
     prizes: contest.prizes || [],
+    reservedSquares,
   };
 
   return (
