@@ -213,10 +213,10 @@ export default function PublicBoard() {
                 variant="default"
                 size="sm"
                 onClick={handleRandomButtonClick}
-                data-testid="button-random-square"
+                data-testid="button-pick-for-me"
               >
                 <Shuffle className="h-4 w-4 mr-2" />
-                Random Square
+                Pick For Me
               </Button>
             )}
           </div>

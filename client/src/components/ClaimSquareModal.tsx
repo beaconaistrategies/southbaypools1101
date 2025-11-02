@@ -75,11 +75,11 @@ export default function ClaimSquareModal({
       <DialogContent className="sm:max-w-md" data-testid="modal-claim-square">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            {isRandom ? "Claim Random Square" : `Claim Square #${squareNumber}`}
+            {isRandom ? "Pick a Square For Me" : `Claim Square #${squareNumber}`}
           </DialogTitle>
           <DialogDescription>
             {isRandom 
-              ? "A random available square will be assigned to you" 
+              ? "We'll randomly select an available square and assign it to you" 
               : "Enter your information to reserve this square"}
           </DialogDescription>
         </DialogHeader>
