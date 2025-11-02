@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shuffle, Folder as FolderIcon } from "lucide-react";
 import SquareSelector from "./SquareSelector";
+import ReserveSquares, { type ReservedSquare } from "./ReserveSquares";
 import PrizesEditor from "./PrizesEditor";
 import type { Prize, Folder } from "@shared/schema";
 
@@ -66,6 +67,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [availableSquares, setAvailableSquares] = useState<number[]>(
     initialData?.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1)
   );
+  const [reservedSquares, setReservedSquares] = useState<ReservedSquare[]>([]);
   const [prizes, setPrizes] = useState<Prize[]>(initialData?.prizes || []);
   const [payoutPreset, setPayoutPreset] = useState<PayoutPreset>("custom");
   
@@ -186,6 +188,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       layerColors: layerColors.slice(0, redRowsCount),
       status: isOpen ? "open" : "locked",
       availableSquares,
+      reservedSquares,
       prizes
     });
   };
@@ -532,6 +535,17 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
         <SquareSelector
           selectedSquares={availableSquares}
           onSelectionChange={setAvailableSquares}
+        />
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Reserved Squares</h3>
+        <ReserveSquares
+          reservedSquares={reservedSquares}
+          onReservationsChange={setReservedSquares}
+          disabledSquares={Array.from({ length: 100 }, (_, i) => i + 1).filter(
+            num => !availableSquares.includes(num)
+          )}
         />
       </Card>
 

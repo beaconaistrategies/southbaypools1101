@@ -59,22 +59,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create the contest
       const contest = await storage.createContest(contestData);
       
-      // Get available squares from request body (default to all 100)
+      // Get available squares and reserved squares from request body
       const availableSquares = req.body.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1);
+      const reservedSquares: Array<{
+        squareNumber: number;
+        entryName: string;
+        holderName: string;
+        holderEmail: string;
+      }> = req.body.reservedSquares || [];
+      
+      // Create a map of reserved squares for quick lookup
+      const reservedMap = new Map(
+        reservedSquares.map(r => [r.squareNumber, r])
+      );
       
       // Create initial squares for the contest
       const squaresToCreate = Array.from({ length: 100 }, (_, i) => {
         const index = i + 1;
-        return {
-          contestId: contest.id,
-          index,
-          row: Math.floor(i / 10),
-          col: i % 10,
-          status: availableSquares.includes(index) ? ("available" as const) : ("disabled" as const),
-        };
+        const reserved = reservedMap.get(index);
+        
+        if (reserved) {
+          // This square is reserved with participant info
+          return {
+            contestId: contest.id,
+            index,
+            row: Math.floor(i / 10),
+            col: i % 10,
+            status: "taken" as const,
+            entryName: reserved.entryName,
+            holderName: reserved.holderName,
+            holderEmail: reserved.holderEmail,
+          };
+        } else {
+          // Normal square (available or disabled)
+          return {
+            contestId: contest.id,
+            index,
+            row: Math.floor(i / 10),
+            col: i % 10,
+            status: availableSquares.includes(index) ? ("available" as const) : ("disabled" as const),
+          };
+        }
       });
       
       await storage.createSquares(squaresToCreate);
+      
+      // Send webhook notifications for reserved squares
+      if (contest.webhookUrl && reservedSquares.length > 0) {
+        for (const reserved of reservedSquares) {
+          sendWebhookNotification(contest.webhookUrl, {
+            contestName: contest.name,
+            contestId: contest.id,
+            entryName: reserved.entryName,
+            holderEmail: reserved.holderEmail,
+            holderName: reserved.holderName,
+            squareNumber: reserved.squareNumber,
+            topTeam: contest.topTeam,
+            leftTeam: contest.leftTeam,
+            eventDate: contest.eventDate.toISOString(),
+          }).catch(err => console.error("Webhook notification failed:", err));
+        }
+      }
       
       res.status(201).json(contest);
     } catch (error) {
