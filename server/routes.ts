@@ -4,8 +4,23 @@ import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
+import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup Replit Auth
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
   // Contest routes
   
   // Get all contests with square counts
@@ -47,8 +62,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a contest with initial squares
-  app.post("/api/contests", async (req, res) => {
+  // Create a contest with initial squares (admin only)
+  app.post("/api/contests", isAdmin, async (req, res) => {
     try {
       // Validate contest data
       const contestData = insertContestSchema.parse({
@@ -133,8 +148,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update a contest
-  app.patch("/api/contests/:id", async (req, res) => {
+  // Update a contest (admin only)
+  app.patch("/api/contests/:id", isAdmin, async (req, res) => {
     try {
       const contestId = req.params.id;
       
@@ -238,8 +253,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete a contest
-  app.delete("/api/contests/:id", async (req, res) => {
+  // Delete a contest (admin only)
+  app.delete("/api/contests/:id", isAdmin, async (req, res) => {
     try {
       await storage.deleteContest(req.params.id);
       res.status(204).send();
@@ -249,8 +264,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Clone a contest
-  app.post("/api/contests/:id/clone", async (req, res) => {
+  // Clone a contest (admin only)
+  app.post("/api/contests/:id/clone", isAdmin, async (req, res) => {
     try {
       const originalContest = await storage.getContest(req.params.id);
       if (!originalContest) {
@@ -546,8 +561,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a folder
-  app.post("/api/folders", async (req, res) => {
+  // Create a folder (admin only)
+  app.post("/api/folders", isAdmin, async (req, res) => {
     try {
       const folderData = insertFolderSchema.parse(req.body);
       const folder = await storage.createFolder(folderData);
@@ -561,8 +576,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete a folder
-  app.delete("/api/folders/:id", async (req, res) => {
+  // Delete a folder (admin only)
+  app.delete("/api/folders/:id", isAdmin, async (req, res) => {
     try {
       await storage.deleteFolder(req.params.id);
       res.status(204).send();
