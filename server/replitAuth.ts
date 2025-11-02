@@ -53,13 +53,31 @@ function updateUserSession(
 async function upsertUser(
   claims: any,
 ) {
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
-  });
+  const existingUser = await storage.getUser(claims["sub"]);
+  
+  if (existingUser) {
+    await storage.upsertUser({
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+    });
+  } else {
+    const { db } = await import("./db");
+    const { users } = await import("@shared/schema");
+    const [{ count }] = await db.select({ count: db.$count() }).from(users);
+    const isFirstUser = count === 0;
+    
+    await storage.upsertUser({
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: claims["first_name"],
+      lastName: claims["last_name"],
+      profileImageUrl: claims["profile_image_url"],
+      isAdmin: isFirstUser,
+    });
+  }
 }
 
 export async function setupAuth(app: Express) {

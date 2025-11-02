@@ -6,7 +6,21 @@ SquareKeeper is a football squares pool management system that enables administr
 
 **Core Purpose:** Simplify the management of football squares pools by providing real-time square claiming, contest configuration with multiple payout layers, and winner tracking across multiple simultaneous contests.
 
+**Authentication:** Admin-only access via Replit Auth with Google/GitHub/email login. First user to log in is automatically granted admin privileges.
+
 ## Recent Changes
+
+### November 2, 2025 - Replit Auth Integration for Admin-Only Access
+- **Authentication System**: Integrated Replit Auth (OIDC) with Google/GitHub/email login for admin access
+- **Admin Gating**: Protected all admin routes (create/edit contests, manage folders) with isAdmin middleware
+- **First User Auto-Admin**: First user to log in is automatically granted admin status (isAdmin=true)
+- **Session Management**: PostgreSQL-backed sessions with secure cookies and automatic token refresh
+- **Protected Routes**: All admin endpoints require authentication and admin role verification
+- **Public Access Preserved**: Public board (/board/:id) and My Contests (/my-contests) remain accessible without login
+- **User Experience**: Added logout button with user email display in TopNav
+- **Database Schema**: Added users and sessions tables for auth persistence
+- **Security**: Middleware validates session expiry and refreshes tokens automatically
+- **End-to-End Verified**: Complete auth workflow implemented (login → admin access → logout)
 
 ### October 31, 2025 - Layer Labels Consolidation
 - **Unified Layer Labels**: Consolidated topLayerLabels and leftLayerLabels into single layerLabels field
