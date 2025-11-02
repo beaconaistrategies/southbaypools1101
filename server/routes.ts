@@ -136,6 +136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a contest
   app.patch("/api/contests/:id", async (req, res) => {
     try {
+      const contestId = req.params.id;
+      
       // Convert eventDate if present
       const bodyWithDate = req.body.eventDate 
         ? { ...req.body, eventDate: new Date(req.body.eventDate) }
@@ -144,9 +146,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate update data
       const updateData = updateContestSchema.parse(bodyWithDate);
       
-      const contest = await storage.updateContest(req.params.id, updateData);
+      const contest = await storage.updateContest(contestId, updateData);
       if (!contest) {
         return res.status(404).json({ error: "Contest not found" });
+      }
+      
+      // Handle reserved squares if provided
+      const reservedSquares: Array<{
+        squareNumber: number;
+        entryName: string;
+        holderName: string;
+        holderEmail: string;
+      }> = req.body.reservedSquares || [];
+      
+      if (reservedSquares.length > 0) {
+        // Get current squares to see which ones need to be updated
+        const currentSquares = await storage.getContestSquares(contestId);
+        const newReservations: typeof reservedSquares = [];
+        
+        // Update squares that are newly reserved
+        for (const reserved of reservedSquares) {
+          const existingSquare = currentSquares.find(s => s.index === reserved.squareNumber);
+          
+          if (existingSquare) {
+            // Only update if the square isn't already taken with this exact info
+            const isAlreadyReserved = 
+              existingSquare.status === "taken" &&
+              existingSquare.entryName === reserved.entryName &&
+              existingSquare.holderName === reserved.holderName &&
+              existingSquare.holderEmail === reserved.holderEmail;
+            
+            if (!isAlreadyReserved) {
+              // Update the square to be taken with participant info
+              await storage.updateSquare(existingSquare.id, {
+                status: "taken",
+                entryName: reserved.entryName,
+                holderName: reserved.holderName,
+                holderEmail: reserved.holderEmail,
+              });
+              
+              // Track this as a new reservation for webhook
+              newReservations.push(reserved);
+            }
+          }
+        }
+        
+        // Send webhook notifications for new reservations
+        if (contest.webhookUrl && newReservations.length > 0) {
+          for (const reserved of newReservations) {
+            sendWebhookNotification(contest.webhookUrl, {
+              contestName: contest.name,
+              contestId: contest.id,
+              entryName: reserved.entryName,
+              holderEmail: reserved.holderEmail,
+              holderName: reserved.holderName,
+              squareNumber: reserved.squareNumber,
+              topTeam: contest.topTeam,
+              leftTeam: contest.leftTeam,
+              eventDate: contest.eventDate.toISOString(),
+            }).catch(err => console.error("Webhook notification failed:", err));
+          }
+        }
       }
       
       res.json(contest);
