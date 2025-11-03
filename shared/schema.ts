@@ -94,14 +94,16 @@ const baseContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
 }).extend({
-  slug: z.string()
-    .max(100, "URL slug must be 100 characters or less")
-    .regex(/^[a-z0-9-]*$/, "URL slug can only contain lowercase letters, numbers, and hyphens")
-    .optional()
-    .transform(val => val && val.trim() !== '' ? val : undefined)
-    .refine(val => !val || !RESERVED_SLUGS.includes(val), {
-      message: `This URL is reserved. Please choose a different one.`
-    }),
+  slug: z.union([
+    z.string()
+      .max(100, "URL slug must be 100 characters or less")
+      .regex(/^[a-z0-9-]+$/, "URL slug can only contain lowercase letters, numbers, and hyphens")
+      .refine(val => !RESERVED_SLUGS.includes(val), {
+        message: `This URL is reserved. Please choose a different one.`
+      }),
+    z.literal('').transform(() => undefined),
+    z.undefined()
+  ]),
   topAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   leftAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   layerLabels: z.array(z.string()).optional(),
