@@ -66,7 +66,8 @@ async function upsertUser(
   } else {
     const { db } = await import("./db");
     const { users } = await import("@shared/schema");
-    const [{ count }] = await db.select({ count: db.$count() }).from(users);
+    const { sql } = await import("drizzle-orm");
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users);
     const isFirstUser = count === 0;
     
     await storage.upsertUser({
@@ -98,52 +99,53 @@ export async function setupAuth(app: Express) {
     verified(null, user);
   };
 
-  // Keep track of registered strategies
-  const registeredStrategies = new Set<string>();
-
-  // Helper function to ensure strategy exists for a domain
-  const ensureStrategy = (domain: string) => {
-    const strategyName = `replitauth:${domain}`;
-    if (!registeredStrategies.has(strategyName)) {
-      const strategy = new Strategy(
-        {
-          name: strategyName,
-          config,
-          scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/callback`,
-        },
-        verify,
-      );
-      passport.use(strategy);
-      registeredStrategies.add(strategyName);
+  // Get the primary domain from REPLIT_DOMAINS
+  const getPrimaryDomain = () => {
+    const domains = process.env.REPLIT_DOMAINS;
+    if (domains) {
+      const domainList = domains.split(',');
+      return domainList[0];
     }
+    return 'localhost:5000';
   };
+
+  const primaryDomain = getPrimaryDomain();
+  
+  const strategy = new Strategy(
+    {
+      name: "replitauth",
+      config,
+      scope: "openid email profile offline_access",
+      callbackURL: `https://${primaryDomain}/api/callback`,
+    },
+    verify,
+  );
+  passport.use(strategy);
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    passport.authenticate("replitauth", {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
     })(req, res, next);
   });
 
   app.get("/api/callback", (req, res, next) => {
-    ensureStrategy(req.hostname);
-    passport.authenticate(`replitauth:${req.hostname}`, {
+    passport.authenticate("replitauth", {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
     })(req, res, next);
   });
 
   app.get("/api/logout", (req, res) => {
+    const primaryDomain = getPrimaryDomain();
     req.logout(() => {
       res.redirect(
         client.buildEndSessionUrl(config, {
           client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+          post_logout_redirect_uri: `https://${primaryDomain}`,
         }).href
       );
     });
