@@ -60,6 +60,7 @@ export type Folder = typeof folders.$inferSelect;
 export const contests = pgTable("contests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  slug: varchar("slug", { length: 100 }).unique(),
   eventDate: timestamp("event_date").notNull(),
   topTeam: text("top_team").notNull(),
   leftTeam: text("left_team").notNull(),
@@ -87,6 +88,11 @@ const baseContestSchema = createInsertSchema(contests).omit({
   id: true,
   createdAt: true,
 }).extend({
+  slug: z.string()
+    .min(1, "URL slug is required")
+    .max(100, "URL slug must be 100 characters or less")
+    .regex(/^[a-z0-9-]+$/, "URL slug can only contain lowercase letters, numbers, and hyphens")
+    .optional(),
   topAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   leftAxisNumbers: z.array(z.array(z.number().min(0).max(9)).length(10)),
   layerLabels: z.array(z.string()).optional(),
