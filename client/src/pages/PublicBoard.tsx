@@ -14,37 +14,42 @@ import type { Contest, Square } from "@shared/schema";
 export default function PublicBoard() {
   const { toast } = useToast();
   const params = useParams();
-  const contestId = params.id || "1";
+  // Support both /board/:id (UUID) and /:slug (slug) routes
+  const identifier = params.id || params.slug || "1";
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
   const [showRandomClaimModal, setShowRandomClaimModal] = useState(false);
 
-  // Fetch contest data
+  // Fetch contest data (API supports both UUID and slug)
   const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
-    queryKey: ["/api/contests", contestId],
+    queryKey: ["/api/contests", identifier],
     queryFn: async () => {
-      const response = await fetch(`/api/contests/${contestId}`);
+      const response = await fetch(`/api/contests/${identifier}`);
       if (!response.ok) throw new Error("Failed to fetch contest");
       return response.json();
     },
   });
 
-  // Fetch squares data
+  // Fetch squares data (must use contest.id once loaded, as squares API requires UUID)
   const { data: squares = [], isLoading: squaresLoading } = useQuery<Square[]>({
-    queryKey: ["/api/contests", contestId, "squares"],
+    queryKey: ["/api/contests", contest?.id, "squares"],
     queryFn: async () => {
-      const response = await fetch(`/api/contests/${contestId}/squares`);
+      if (!contest?.id) throw new Error("Contest not loaded");
+      const response = await fetch(`/api/contests/${contest.id}/squares`);
       if (!response.ok) throw new Error("Failed to fetch squares");
       return response.json();
     },
+    enabled: !!contest?.id,
   });
 
-  // Claim square mutation
+  // Claim square mutation (uses contest.id)
   const claimSquareMutation = useMutation({
     mutationFn: async ({ index, data }: { index: number; data: any }) => {
-      return await apiRequest("PATCH", `/api/contests/${contestId}/squares/${index}`, data);
+      if (!contest?.id) throw new Error("Contest not loaded");
+      return await apiRequest("PATCH", `/api/contests/${contest.id}/squares/${index}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contest?.id, "squares"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", identifier] });
     },
   });
 
@@ -98,12 +103,13 @@ export default function PublicBoard() {
 
   const randomClaimMutation = useMutation({
     mutationFn: async (data: { holderName: string; holderEmail: string; entryName: string }) => {
-      const response = await apiRequest("POST", `/api/contests/${contestId}/squares/random`, data);
+      if (!contest?.id) throw new Error("Contest not loaded");
+      const response = await apiRequest("POST", `/api/contests/${contest.id}/squares/random`, data);
       return response.json();
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId, "squares"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contest?.id, "squares"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", identifier] });
       toast({
         title: "Square Assigned",
         description: `Square #${result.squareNumber} has been randomly assigned to ${result.entryName}`,
