@@ -15,6 +15,7 @@ export interface IStorage {
   
   // Contest methods
   getContest(id: string): Promise<Contest | undefined>;
+  getContestBySlug(slug: string): Promise<Contest | undefined>;
   getAllContests(): Promise<Contest[]>;
   createContest(contest: InsertContest): Promise<Contest>;
   updateContest(id: string, contest: Partial<InsertContest>): Promise<Contest | undefined>;
@@ -73,6 +74,11 @@ export class DbStorage implements IStorage {
   // Contest methods
   async getContest(id: string): Promise<Contest | undefined> {
     const result = await db.select().from(contests).where(eq(contests.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getContestBySlug(slug: string): Promise<Contest | undefined> {
+    const result = await db.select().from(contests).where(eq(contests.slug, slug)).limit(1);
     return result[0];
   }
 

@@ -38,6 +38,7 @@ interface ContestFormProps {
 
 export default function ContestForm({ initialData, onSubmit, onCancel }: ContestFormProps) {
   const [name, setName] = useState(initialData?.name || "");
+  const [slug, setSlug] = useState((initialData as any)?.slug || "");
   const [eventDate, setEventDate] = useState(initialData?.eventDate || "");
   const [topTeam, setTopTeam] = useState(initialData?.topTeam || "");
   const [leftTeam, setLeftTeam] = useState(initialData?.leftTeam || "");
@@ -173,6 +174,16 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
     setLeftAxisNumbers(newLayers);
   };
 
+  // Auto-generate slug from name
+  const generateSlug = (text: string): string => {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .trim()
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-'); // Replace multiple hyphens with single hyphen
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -182,8 +193,12 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
       num => !reservedSquareNumbers.includes(num)
     );
     
+    // Use provided slug or auto-generate from name
+    const finalSlug = slug.trim() || generateSlug(name);
+    
     onSubmit({
       name,
+      slug: finalSlug || undefined,
       eventDate,
       topTeam,
       leftTeam,
@@ -220,6 +235,25 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               required
               data-testid="input-contest-name"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="slug">
+              Custom URL (optional)
+            </Label>
+            <Input
+              id="slug"
+              value={slug}
+              onChange={(e) => {
+                const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                setSlug(value);
+              }}
+              placeholder={generateSlug(name) || "thanksgiving"}
+              data-testid="input-contest-slug"
+            />
+            <p className="text-sm text-muted-foreground">
+              Creates a friendly URL like: yourdomain.com/{slug || generateSlug(name) || "thanksgiving"}
+            </p>
           </div>
 
           {folders.length > 0 && (

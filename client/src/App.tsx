@@ -72,6 +72,7 @@ function Router() {
       </Route>
       <Route path="/board/:id" component={PublicBoard} />
       <Route path="/my-contests" component={MyContests} />
+      <Route path="/:slug" component={PublicBoard} />
       <Route component={NotFound} />
     </Switch>
   );
