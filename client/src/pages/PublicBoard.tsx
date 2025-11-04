@@ -231,12 +231,6 @@ export default function PublicBoard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="space-y-8">
-          <WinnersPanel
-            prizes={contest.prizes || []}
-            winners={contest.winners || []}
-            readOnly={true}
-          />
-          
           <div className="bg-card border rounded-lg p-6">
             <SquareGrid
               topTeam={contest.topTeam}
@@ -272,6 +266,12 @@ export default function PublicBoard() {
               </div>
             </div>
           </div>
+
+          <WinnersPanel
+            prizes={contest.prizes || []}
+            winners={contest.winners || []}
+            readOnly={true}
+          />
         </div>
       </main>
 
