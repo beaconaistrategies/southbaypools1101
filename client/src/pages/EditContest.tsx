@@ -204,6 +204,7 @@ export default function EditContest() {
 
   const initialData = {
     name: contest.name,
+    slug: (contest as any).slug || "",
     eventDate: eventDateString,
     topTeam: contest.topTeam,
     leftTeam: contest.leftTeam,
