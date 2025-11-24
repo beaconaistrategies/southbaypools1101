@@ -173,80 +173,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Contest not found" });
       }
       
-      // Handle reserved squares if provided in the request body
-      const reservedSquares: Array<{
-        squareNumber: number;
-        entryName: string;
-        holderName: string;
-        holderEmail: string;
-      }> = req.body.reservedSquares || [];
-      
-      // Get current squares to see which ones need to be updated
-      const currentSquares = await storage.getContestSquares(contestId);
-      const newReservations: typeof reservedSquares = [];
-      
-      // Find currently reserved squares (that were pre-assigned)
-      const currentlyReservedSquares = currentSquares.filter(
-        s => s.status === "taken" && s.entryName && s.holderName && s.holderEmail
-      );
-      
-      // Create a set of square numbers that should be reserved
-      const reservedSquareNumbers = new Set(reservedSquares.map(r => r.squareNumber));
-      
-      // Handle removed reservations - make them available again
-      for (const currentReserved of currentlyReservedSquares) {
-        if (!reservedSquareNumbers.has(currentReserved.index)) {
-          // This square was reserved before but is no longer in the list - make it available
-          await storage.updateSquare(currentReserved.id, {
-            status: "available",
-            entryName: null,
-            holderName: null,
-            holderEmail: null,
-          });
-        }
-      }
-      
-      // Handle new or updated reservations
-      for (const reserved of reservedSquares) {
-        const existingSquare = currentSquares.find(s => s.index === reserved.squareNumber);
+      // Only handle reserved squares if explicitly provided in the request body
+      // This prevents accidental webhooks when updating other contest fields (like showRedHeaders)
+      if (req.body.reservedSquares !== undefined) {
+        const reservedSquares: Array<{
+          squareNumber: number;
+          entryName: string;
+          holderName: string;
+          holderEmail: string;
+        }> = req.body.reservedSquares;
         
-        if (existingSquare) {
-          // Only update if the square isn't already taken with this exact info
-          const isAlreadyReserved = 
-            existingSquare.status === "taken" &&
-            existingSquare.entryName === reserved.entryName &&
-            existingSquare.holderName === reserved.holderName &&
-            existingSquare.holderEmail === reserved.holderEmail;
-          
-          if (!isAlreadyReserved) {
-            // Update the square to be taken with participant info
-            await storage.updateSquare(existingSquare.id, {
-              status: "taken",
-              entryName: reserved.entryName,
-              holderName: reserved.holderName,
-              holderEmail: reserved.holderEmail,
+        // Get current squares to see which ones need to be updated
+        const currentSquares = await storage.getContestSquares(contestId);
+        const newReservations: typeof reservedSquares = [];
+        
+        // Find currently reserved squares (that were pre-assigned)
+        const currentlyReservedSquares = currentSquares.filter(
+          s => s.status === "taken" && s.entryName && s.holderName && s.holderEmail
+        );
+        
+        // Create a set of square numbers that should be reserved
+        const reservedSquareNumbers = new Set(reservedSquares.map(r => r.squareNumber));
+        
+        // Handle removed reservations - make them available again
+        for (const currentReserved of currentlyReservedSquares) {
+          if (!reservedSquareNumbers.has(currentReserved.index)) {
+            // This square was reserved before but is no longer in the list - make it available
+            await storage.updateSquare(currentReserved.id, {
+              status: "available",
+              entryName: null,
+              holderName: null,
+              holderEmail: null,
             });
-            
-            // Track this as a new reservation for webhook
-            newReservations.push(reserved);
           }
         }
-      }
-      
-      // Send webhook notifications for new reservations
-      if (contest.webhookUrl && newReservations.length > 0) {
-        for (const reserved of newReservations) {
-          sendWebhookNotification(contest.webhookUrl, {
-            contestName: contest.name,
-            contestId: contest.id,
-            entryName: reserved.entryName,
-            holderEmail: reserved.holderEmail,
-            holderName: reserved.holderName,
-            squareNumber: reserved.squareNumber,
-            topTeam: contest.topTeam,
-            leftTeam: contest.leftTeam,
-            eventDate: contest.eventDate.toISOString(),
-          }).catch(err => console.error("Webhook notification failed:", err));
+        
+        // Handle new or updated reservations
+        for (const reserved of reservedSquares) {
+          const existingSquare = currentSquares.find(s => s.index === reserved.squareNumber);
+          
+          if (existingSquare) {
+            // Only update if the square isn't already taken with this exact info
+            const isAlreadyReserved = 
+              existingSquare.status === "taken" &&
+              existingSquare.entryName === reserved.entryName &&
+              existingSquare.holderName === reserved.holderName &&
+              existingSquare.holderEmail === reserved.holderEmail;
+            
+            if (!isAlreadyReserved) {
+              // Update the square to be taken with participant info
+              await storage.updateSquare(existingSquare.id, {
+                status: "taken",
+                entryName: reserved.entryName,
+                holderName: reserved.holderName,
+                holderEmail: reserved.holderEmail,
+              });
+              
+              // Track this as a new reservation for webhook
+              newReservations.push(reserved);
+            }
+          }
+        }
+        
+        // Send webhook notifications for new reservations only
+        if (contest.webhookUrl && newReservations.length > 0) {
+          for (const reserved of newReservations) {
+            sendWebhookNotification(contest.webhookUrl, {
+              contestName: contest.name,
+              contestId: contest.id,
+              entryName: reserved.entryName,
+              holderEmail: reserved.holderEmail,
+              holderName: reserved.holderName,
+              squareNumber: reserved.squareNumber,
+              topTeam: contest.topTeam,
+              leftTeam: contest.leftTeam,
+              eventDate: contest.eventDate.toISOString(),
+            }).catch(err => console.error("Webhook notification failed:", err));
+          }
         }
       }
       
