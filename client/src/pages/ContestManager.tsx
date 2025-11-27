@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import SquareGrid from "@/components/SquareGrid";
@@ -667,6 +667,23 @@ export default function ContestManager() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Contest Details</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Edit contest name, teams, event date, payout configuration, and more.
+                  </p>
+                </div>
+                <Link href={`/admin/contest/${contestId}/edit`}>
+                  <Button data-testid="button-edit-contest">
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Contest
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4">Webhook Integration</h3>
               

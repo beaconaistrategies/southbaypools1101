@@ -77,7 +77,7 @@ export default function AdminDashboard() {
   };
 
   const handleManage = (id: string) => {
-    setLocation(`/admin/contest/${id}/edit`);
+    setLocation(`/admin/contest/${id}`);
   };
 
   const handleCreateFolder = () => {
