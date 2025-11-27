@@ -2,10 +2,12 @@ import { useLocation, useParams } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import TopNav from "@/components/TopNav";
 import ContestForm from "@/components/ContestForm";
+import WinnersPanel from "@/components/WinnersPanel";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Contest, Square } from "@shared/schema";
+import type { Contest, Square, Winner } from "@shared/schema";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Download, Trash2, Eye, EyeOff } from "lucide-react";
 import {
   AlertDialog,
@@ -162,6 +164,30 @@ export default function EditContest() {
     toggleRedHeadersMutation.mutate();
   };
 
+  const updateWinnersMutation = useMutation({
+    mutationFn: async (winners: Winner[]) => {
+      return await apiRequest("PATCH", `/api/contests/${contestId}`, { winners });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contests", contestId] });
+      toast({
+        title: "Winners Updated",
+        description: "Winning squares have been saved.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update winners",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleUpdateWinners = (winners: Winner[]) => {
+    updateWinnersMutation.mutate(winners);
+  };
+
   if (contestLoading || squaresLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -305,6 +331,21 @@ export default function EditContest() {
           onSubmit={handleSubmit} 
           onCancel={handleCancel} 
         />
+
+        <div className="mt-8">
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Mark Winners</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Enter the winning square number for each prize period. The winning squares will be highlighted on the board.
+            </p>
+            <WinnersPanel
+              prizes={contest.prizes || []}
+              winners={contest.winners || []}
+              onUpdate={handleUpdateWinners}
+              readOnly={false}
+            />
+          </Card>
+        </div>
       </main>
     </div>
   );
