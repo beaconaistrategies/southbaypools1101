@@ -658,12 +658,18 @@ export default function ContestManager() {
               }}
             />
             
-            <WinnersPanel
-              prizes={contest.prizes || []}
-              winners={contest.winners || []}
-              onUpdate={handleUpdateWinners}
-              readOnly={false}
-            />
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Mark Winners</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Enter the winning square number for each prize period. The winning squares will be highlighted on the board.
+              </p>
+              <WinnersPanel
+                prizes={contest.prizes || []}
+                winners={contest.winners || []}
+                onUpdate={handleUpdateWinners}
+                readOnly={false}
+              />
+            </Card>
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

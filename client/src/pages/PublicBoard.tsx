@@ -267,11 +267,16 @@ export default function PublicBoard() {
             </div>
           </div>
 
-          <WinnersPanel
-            prizes={contest.prizes || []}
-            winners={contest.winners || []}
-            readOnly={true}
-          />
+          {(contest.prizes || []).length > 0 && (
+            <div className="bg-muted/50 border rounded-lg p-4">
+              <h3 className="font-medium mb-3">Winners</h3>
+              <WinnersPanel
+                prizes={contest.prizes || []}
+                winners={contest.winners || []}
+                readOnly={true}
+              />
+            </div>
+          )}
         </div>
       </main>
 
