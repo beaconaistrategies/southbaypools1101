@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Multi-Game Winner Colors**: Winner squares now display the correct game-based layer color (red for Game 1, blue for Game 2, yellow for Game 3) instead of cycling through all layer colors
+- **Simplified Winner Labels**: Winner badges on squares now show just the period (Q1, HALF, FINAL, etc.) instead of the full label (e.g., "GB @ DET Q1")
+
 ## [1.3.0] - 2024-11-28
 
 ### Added

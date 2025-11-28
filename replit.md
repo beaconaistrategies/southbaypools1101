@@ -49,7 +49,7 @@ Preferred communication style: Simple, everyday language.
 **User Experience:**
 - **Email Notifications:** Optional n8n webhook integration for square claim notifications.
 - **My Contests Page:** Participants can look up all their participations by email.
-- **Winner Highlighting:** Winning squares are color-coded based on the corresponding header layer color.
+- **Winner Highlighting:** Winning squares are color-coded by game layer. For multi-game boards (>8 prizes), all 8 prizes per game share the same color (Game 1 = red, Game 2 = blue, Game 3 = yellow). For single-game boards (≤8 prizes), each prize gets a unique color. Winner badges display simplified period labels (Q1, HALF, FINAL, etc.) instead of full game labels.
 
 **Admin Tooling:**
 - CSV Export of participant data.
