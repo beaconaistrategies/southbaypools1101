@@ -44,6 +44,7 @@ Preferred communication style: Simple, everyday language.
 - **Preset Payouts:** Preset selector (Quarters, Half and Final, Custom) synchronizes layer labels with prize labels.
 - **Multi-Layer Red Headers:** `redHeadersCount` determines the number of 0-9 digit sets (layers), supporting up to 6 independent shuffling layers for different payout periods.
 - **Red Headers Visibility:** Admin toggle to reveal/hide red header numbers on both admin and public boards.
+- **Multi-Game Boards:** Support for 3+ games per board with 8 prize periods each (Q1, HALF, Q3, FINAL + Opposites). Layer labels define game names (e.g., "GB @ DET", "KC @ DAL"). "Generate Multi-Game Prizes" button auto-creates all 24 prizes with proper labels.
 
 **User Experience:**
 - **Email Notifications:** Optional n8n webhook integration for square claim notifications.
