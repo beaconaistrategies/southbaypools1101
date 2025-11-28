@@ -91,9 +91,16 @@ export default function WinnersPanel({
     );
   }
 
-  const numGames = layerLabels.length > 0 ? layerLabels.length : Math.ceil(prizes.length / PERIODS_PER_GAME);
+  // Determine if this is a multi-game setup based on ACTUAL prizes, not just layer labels
+  // A valid multi-game setup requires: prizes divisible by 8 AND at least 2 games worth
+  const isValidMultiGame = prizes.length >= PERIODS_PER_GAME * 2 && prizes.length % PERIODS_PER_GAME === 0;
+  const numGamesFromPrizes = Math.floor(prizes.length / PERIODS_PER_GAME);
+  const numGames = isValidMultiGame ? numGamesFromPrizes : 1;
   
-  if (numGames <= 1 && layerLabels.length === 0) {
+  // Only use layer labels if they match the number of games from prizes
+  const useMultiGameLayout = isValidMultiGame && (layerLabels.length === 0 || layerLabels.length === numGamesFromPrizes);
+  
+  if (!useMultiGameLayout) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {prizes.map((prize, index) => {
@@ -140,10 +147,22 @@ export default function WinnersPanel({
     );
   }
 
+  // Build games array from actual prizes
   const games = Array.from({ length: numGames }, (_, gameIndex) => {
-    const gameName = layerLabels[gameIndex] || `Game ${gameIndex + 1}`;
     const startIdx = gameIndex * PERIODS_PER_GAME;
     const gamePrizes = prizes.slice(startIdx, startIdx + PERIODS_PER_GAME);
+    
+    // Try to get game name from layer labels or derive from first prize label
+    let gameName = layerLabels[gameIndex];
+    if (!gameName && gamePrizes.length > 0) {
+      // Try to extract game name from prize label (e.g., "GB @ DET Q1" -> "GB @ DET")
+      const firstPrizeLabel = gamePrizes[0].label;
+      const periodMatch = PERIOD_LABELS.find(p => firstPrizeLabel.endsWith(p) || firstPrizeLabel.endsWith(` ${p}`));
+      if (periodMatch) {
+        gameName = firstPrizeLabel.replace(new RegExp(`\\s*${periodMatch}$`), '').trim();
+      }
+    }
+    gameName = gameName || `Game ${gameIndex + 1}`;
     
     return {
       index: gameIndex,
