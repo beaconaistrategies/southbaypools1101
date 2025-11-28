@@ -99,15 +99,51 @@ export default function SquareGrid({
     };
   };
 
+  // Extract just the period part from a prize label (e.g., "GB @ DET Q1" -> "Q1")
+  const extractPeriodLabel = (fullLabel: string): string => {
+    // Known period keywords to look for
+    const periods = ["Q1", "Q2", "Q3", "Q4", "HALF", "FINAL"];
+    const upperLabel = fullLabel.toUpperCase();
+    
+    // Check for opposite variants first
+    for (const period of periods) {
+      if (upperLabel.includes(`${period} OPP`) || upperLabel.includes(`${period} OPPOSITE`)) {
+        return `${period} Opp`;
+      }
+    }
+    
+    // Check for standard periods
+    for (const period of periods) {
+      if (upperLabel.includes(period)) {
+        return period;
+      }
+    }
+    
+    // Fallback: return the original label
+    return fullLabel;
+  };
+
   // Check if a square is a winner and get its prize index
-  const getWinnerInfo = (squareNumber: number): { label: string; prizeIndex: number } | undefined => {
+  const getWinnerInfo = (squareNumber: number): { label: string; displayLabel: string; prizeIndex: number; colorIndex: number } | undefined => {
     const winner = winners.find(w => w.squareNumber === squareNumber);
     if (!winner) return undefined;
     
     const prizeIndex = prizes.findIndex(p => p.label === winner.label);
+    const safePrizeIndex = prizeIndex >= 0 ? prizeIndex : 0;
+    
+    // Determine color index based on board type:
+    // - Multi-game boards (>8 prizes): group by game (8 prizes per game), each game gets one color
+    // - Single-game boards (≤8 prizes): each prize gets its own color (Q1=0, Q2=1, etc.)
+    const isMultiGameBoard = prizes.length > 8;
+    const colorIndex = isMultiGameBoard 
+      ? Math.floor(safePrizeIndex / 8)  // Multi-game: all 8 prizes per game share same color
+      : safePrizeIndex;                  // Single-game: each prize has unique color
+    
     return {
       label: winner.label,
-      prizeIndex: prizeIndex >= 0 ? prizeIndex : 0
+      displayLabel: extractPeriodLabel(winner.label),
+      prizeIndex: safePrizeIndex,
+      colorIndex
     };
   };
 
@@ -138,8 +174,8 @@ export default function SquareGrid({
       : "";
     const hoverClass = !readOnly && (isAvailable || isTaken) ? "hover-elevate active-elevate-2" : "";
     
-    // Get inline style for winner background
-    const winnerStyle = isWinner ? getLayerStyle(winnerInfo.prizeIndex) : {};
+    // Get inline style for winner background - use colorIndex for proper color coordination
+    const winnerStyle = isWinner ? getLayerStyle(winnerInfo.colorIndex) : {};
     
     return (
       <div 
@@ -157,9 +193,9 @@ export default function SquareGrid({
           <Badge 
             variant="default" 
             className="absolute top-1 right-1 text-xs"
-            style={getLayerBadgeStyle(winnerInfo.prizeIndex)}
+            style={getLayerBadgeStyle(winnerInfo.colorIndex)}
           >
-            {winnerInfo.label}
+            {winnerInfo.displayLabel}
           </Badge>
         )}
         {isTaken && square.entryName && (
