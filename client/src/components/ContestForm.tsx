@@ -593,6 +593,37 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
         />
       </Card>
 
+      {layerLabels.length >= 2 && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">Multi-Game Prizes</h3>
+              <p className="text-sm text-muted-foreground">
+                You have {layerLabels.length} games configured. Generate 8 prize periods per game (Q1, HALF, Q3, FINAL + Opposites).
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const PERIOD_LABELS = ["Q1", "HALF", "Q3", "FINAL", "Q1 Opposite", "HALF Opposite", "Q3 Opposite", "FINAL Opposite"];
+                const newPrizes: Prize[] = [];
+                layerLabels.forEach((gameName) => {
+                  PERIOD_LABELS.forEach((period) => {
+                    newPrizes.push({ label: `${gameName} ${period}`, amount: "" });
+                  });
+                });
+                setPrizes(newPrizes);
+                setPayoutPreset("custom");
+              }}
+              data-testid="button-generate-multi-game-prizes"
+            >
+              Generate {layerLabels.length * 8} Prizes
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <PrizesEditor
         prizes={prizes}
         onUpdate={(newPrizes, labelsChanged = false) => {
