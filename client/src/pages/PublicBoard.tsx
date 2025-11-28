@@ -274,6 +274,9 @@ export default function PublicBoard() {
                 prizes={contest.prizes || []}
                 winners={contest.winners || []}
                 readOnly={true}
+                layerLabels={contest.layerLabels || []}
+                layerColors={(contest as any).layerColors || []}
+                headerColorsEnabled={(contest as any).headerColorsEnabled ?? true}
               />
             </div>
           )}

@@ -668,6 +668,9 @@ export default function ContestManager() {
                 winners={contest.winners || []}
                 onUpdate={handleUpdateWinners}
                 readOnly={false}
+                layerLabels={contest.layerLabels || []}
+                layerColors={(contest as any).layerColors || []}
+                headerColorsEnabled={(contest as any).headerColorsEnabled ?? true}
               />
             </Card>
           </TabsContent>
