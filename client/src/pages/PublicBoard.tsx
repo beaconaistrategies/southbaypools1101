@@ -273,6 +273,7 @@ export default function PublicBoard() {
               <WinnersPanel
                 prizes={contest.prizes || []}
                 winners={contest.winners || []}
+                squares={squares}
                 readOnly={true}
                 layerLabels={contest.layerLabels || []}
                 layerColors={(contest as any).layerColors || []}

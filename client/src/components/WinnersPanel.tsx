@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import type { Prize, Winner } from "@shared/schema";
+import type { Prize, Winner, Square } from "@shared/schema";
 
 const defaultColors = ["#fda4af", "#93c5fd", "#fcd34d", "#6ee7b7", "#c084fc", "#67e8f9"];
 
@@ -12,6 +12,7 @@ const PERIOD_LABELS = ["Q1", "HALF", "Q3", "FINAL", "Q1 Opposite", "HALF Opposit
 interface WinnersPanelProps {
   prizes?: Prize[];
   winners?: Winner[];
+  squares?: Square[];
   onUpdate?: (winners: Winner[]) => void;
   readOnly?: boolean;
   layerLabels?: string[];
@@ -28,6 +29,7 @@ function hexToRgb(hex: string): string {
 export default function WinnersPanel({
   prizes = [],
   winners = [],
+  squares = [],
   onUpdate,
   readOnly = false,
   layerLabels = [],
@@ -57,6 +59,12 @@ export default function WinnersPanel({
   const getSquareNumberForPrize = (label: string): number => {
     const winner = winners.find(w => w.label === label);
     return winner?.squareNumber || 0;
+  };
+
+  const getWinnerName = (squareNumber: number): string | null => {
+    if (squareNumber <= 0) return null;
+    const square = squares.find(s => s.index === squareNumber);
+    return square?.entryName || null;
   };
 
   const getGameColor = (gameIndex: number): string => {
@@ -121,10 +129,10 @@ export default function WinnersPanel({
               </div>
               {readOnly ? (
                 <div 
-                  className="text-2xl font-bold font-mono text-center py-2 bg-muted/50 rounded border"
+                  className="text-lg font-bold text-center py-2 bg-muted/50 rounded border"
                   data-testid={`text-winner-${index}`}
                 >
-                  {squareNumber > 0 ? `#${squareNumber}` : "—"}
+                  {squareNumber > 0 ? (getWinnerName(squareNumber) || `#${squareNumber}`) : "—"}
                 </div>
               ) : (
                 <Input
@@ -213,10 +221,11 @@ export default function WinnersPanel({
                     </div>
                     {readOnly ? (
                       <div 
-                        className="text-lg font-bold font-mono text-center py-1.5 bg-muted/50 rounded border"
+                        className="text-sm font-bold text-center py-1.5 bg-muted/50 rounded border truncate px-1"
                         data-testid={`text-winner-${globalIndex}`}
+                        title={squareNumber > 0 ? `#${squareNumber}: ${getWinnerName(squareNumber) || 'Unknown'}` : undefined}
                       >
-                        {squareNumber > 0 ? `#${squareNumber}` : "—"}
+                        {squareNumber > 0 ? (getWinnerName(squareNumber) || `#${squareNumber}`) : "—"}
                       </div>
                     ) : (
                       <Input

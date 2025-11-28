@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Winners Panel Shows Names**: Public Winners section now displays participant names instead of square numbers; admin Mark Winners still uses square numbers for input
+
 ### Fixed
 - **Multi-Game Winner Colors**: Winner squares now display the correct game-based layer color (red for Game 1, blue for Game 2, yellow for Game 3) instead of cycling through all layer colors
 - **Simplified Winner Labels**: Winner badges on squares now show just the period (Q1, HALF, FINAL, etc.) instead of the full label (e.g., "GB @ DET Q1")
