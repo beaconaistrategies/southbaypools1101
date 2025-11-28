@@ -6,8 +6,9 @@ import type { Prize, Winner, Square } from "@shared/schema";
 
 const defaultColors = ["#fda4af", "#93c5fd", "#fcd34d", "#6ee7b7", "#c084fc", "#67e8f9"];
 
-const PERIODS_PER_GAME = 8;
-const PERIOD_LABELS = ["Q1", "HALF", "Q3", "FINAL", "Q1 Opposite", "HALF Opposite", "Q3 Opposite", "FINAL Opposite"];
+const PERIOD_LABELS_8 = ["Q1", "HALF", "Q3", "FINAL", "Q1 Opposite", "HALF Opposite", "Q3 Opposite", "FINAL Opposite"];
+const PERIOD_LABELS_4 = ["Q1", "HALF", "Q3", "FINAL"];
+const PERIOD_LABELS_5 = ["Q1", "Q2", "HALF", "Q3", "FINAL"];
 
 interface WinnersPanelProps {
   prizes?: Prize[];
@@ -99,14 +100,52 @@ export default function WinnersPanel({
     );
   }
 
-  // Determine if this is a multi-game setup based on ACTUAL prizes, not just layer labels
-  // A valid multi-game setup requires: prizes divisible by 8 AND at least 2 games worth
-  const isValidMultiGame = prizes.length >= PERIODS_PER_GAME * 2 && prizes.length % PERIODS_PER_GAME === 0;
-  const numGamesFromPrizes = Math.floor(prizes.length / PERIODS_PER_GAME);
-  const numGames = isValidMultiGame ? numGamesFromPrizes : 1;
+  // Determine if this is a multi-game setup
+  // Use layer labels count as primary indicator of number of games
+  // Then calculate prizes per game dynamically
+  const numGamesFromLabels = layerLabels.length;
   
-  // Only use layer labels if they match the number of games from prizes
-  const useMultiGameLayout = isValidMultiGame && (layerLabels.length === 0 || layerLabels.length === numGamesFromPrizes);
+  // Detect multi-game: either has layer labels OR has more than 8 prizes
+  const isMultiGame = numGamesFromLabels > 1 || prizes.length > 8;
+  
+  // Calculate prizes per game based on available information
+  let prizesPerGame: number;
+  let numGames: number;
+  
+  if (numGamesFromLabels > 1) {
+    // Use layer labels to determine game count
+    numGames = numGamesFromLabels;
+    prizesPerGame = Math.floor(prizes.length / numGames);
+  } else if (prizes.length > 8) {
+    // Try common divisors: 8, 5, 4
+    if (prizes.length % 8 === 0) {
+      prizesPerGame = 8;
+      numGames = prizes.length / 8;
+    } else if (prizes.length % 5 === 0) {
+      prizesPerGame = 5;
+      numGames = prizes.length / 5;
+    } else if (prizes.length % 4 === 0) {
+      prizesPerGame = 4;
+      numGames = prizes.length / 4;
+    } else {
+      prizesPerGame = prizes.length;
+      numGames = 1;
+    }
+  } else {
+    prizesPerGame = prizes.length;
+    numGames = 1;
+  }
+  
+  // Use multi-game layout if we have multiple games
+  const useMultiGameLayout = isMultiGame && numGames > 1 && prizesPerGame >= 4;
+  
+  // Get period labels based on prizes per game
+  const getPeriodLabels = (): string[] => {
+    if (prizesPerGame === 8) return PERIOD_LABELS_8;
+    if (prizesPerGame === 5) return PERIOD_LABELS_5;
+    if (prizesPerGame === 4) return PERIOD_LABELS_4;
+    return Array.from({ length: prizesPerGame }, (_, i) => `Prize ${i + 1}`);
+  };
   
   if (!useMultiGameLayout) {
     return (
@@ -155,17 +194,20 @@ export default function WinnersPanel({
     );
   }
 
+  // Get the period labels for this board configuration
+  const periodLabels = getPeriodLabels();
+
   // Build games array from actual prizes
   const games = Array.from({ length: numGames }, (_, gameIndex) => {
-    const startIdx = gameIndex * PERIODS_PER_GAME;
-    const gamePrizes = prizes.slice(startIdx, startIdx + PERIODS_PER_GAME);
+    const startIdx = gameIndex * prizesPerGame;
+    const gamePrizes = prizes.slice(startIdx, startIdx + prizesPerGame);
     
     // Try to get game name from layer labels or derive from first prize label
     let gameName = layerLabels[gameIndex];
     if (!gameName && gamePrizes.length > 0) {
       // Try to extract game name from prize label (e.g., "GB @ DET Q1" -> "GB @ DET")
       const firstPrizeLabel = gamePrizes[0].label;
-      const periodMatch = PERIOD_LABELS.find(p => firstPrizeLabel.endsWith(p) || firstPrizeLabel.endsWith(` ${p}`));
+      const periodMatch = periodLabels.find((p: string) => firstPrizeLabel.endsWith(p) || firstPrizeLabel.endsWith(` ${p}`));
       if (periodMatch) {
         gameName = firstPrizeLabel.replace(new RegExp(`\\s*${periodMatch}$`), '').trim();
       }
@@ -202,10 +244,10 @@ export default function WinnersPanel({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {game.prizes.length > 0 ? (
               game.prizes.map((prize, periodIndex) => {
-                const globalIndex = game.index * PERIODS_PER_GAME + periodIndex;
+                const globalIndex = game.index * prizesPerGame + periodIndex;
                 const squareNumber = getSquareNumberForPrize(prize.label);
                 const uniqueId = `winner-${globalIndex}-${prize.label.replace(/\s+/g, '-')}`;
-                const periodLabel = PERIOD_LABELS[periodIndex] || prize.label;
+                const periodLabel = periodLabels[periodIndex] || prize.label;
                 
                 return (
                   <div key={`prize-${globalIndex}`} className="space-y-1">
@@ -246,7 +288,7 @@ export default function WinnersPanel({
               })
             ) : (
               <div className="col-span-4 text-sm text-muted-foreground text-center py-4">
-                No prizes configured for this game. Add {PERIODS_PER_GAME} prizes ({PERIOD_LABELS.join(", ")}) in the Prize Payouts section above.
+                No prizes configured for this game. Add {prizesPerGame} prizes ({periodLabels.join(", ")}) in the Prize Payouts section above.
               </div>
             )}
           </div>

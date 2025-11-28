@@ -132,12 +132,22 @@ export default function SquareGrid({
     const safePrizeIndex = prizeIndex >= 0 ? prizeIndex : 0;
     
     // Determine color index based on board type:
-    // - Multi-game boards (>8 prizes): group by game (8 prizes per game), each game gets one color
+    // - Multi-game boards: group prizes by game, each game gets one color
     // - Single-game boards (≤8 prizes): each prize gets its own color (Q1=0, Q2=1, etc.)
-    const isMultiGameBoard = prizes.length > 8;
-    const colorIndex = isMultiGameBoard 
-      ? Math.floor(safePrizeIndex / 8)  // Multi-game: all 8 prizes per game share same color
-      : safePrizeIndex;                  // Single-game: each prize has unique color
+    // 
+    // Detect number of games from layerLabels or derive from prize count
+    const numGames = layerLabels && layerLabels.length > 0 ? layerLabels.length : 1;
+    const isMultiGameBoard = numGames > 1 && prizes.length > 8;
+    
+    let colorIndex: number;
+    if (isMultiGameBoard) {
+      // Calculate prizes per game dynamically (could be 4, 5, 8 prizes per game)
+      const prizesPerGame = Math.floor(prizes.length / numGames);
+      colorIndex = prizesPerGame > 0 ? Math.floor(safePrizeIndex / prizesPerGame) : 0;
+    } else {
+      // Single-game: each prize has unique color
+      colorIndex = safePrizeIndex;
+    }
     
     return {
       label: winner.label,
