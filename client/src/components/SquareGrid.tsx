@@ -100,7 +100,9 @@ export default function SquareGrid({
   };
 
   // Extract just the period part from a prize label (e.g., "GB @ DET Q1" -> "Q1")
-  const extractPeriodLabel = (fullLabel: string): string => {
+  const extractPeriodLabel = (fullLabel: string | undefined): string => {
+    if (!fullLabel) return "";
+    
     // Known period keywords to look for
     const periods = ["Q1", "Q2", "Q3", "Q4", "HALF", "FINAL"];
     const upperLabel = fullLabel.toUpperCase();
