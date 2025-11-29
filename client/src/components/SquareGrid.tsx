@@ -125,6 +125,30 @@ export default function SquareGrid({
     return fullLabel;
   };
 
+  // Extract game number from a prize label
+  // Supports formats like: "GM 1 Q1", "GM 2 HALF", "GB @ DET Q1", etc.
+  const extractGameNumber = (label: string): number => {
+    if (!label) return 0;
+    
+    // Pattern 1: "GM X" format (e.g., "GM 1 Q1", "GM 2 HALF")
+    const gmMatch = label.match(/GM\s*(\d+)/i);
+    if (gmMatch) {
+      return parseInt(gmMatch[1], 10) - 1; // Convert to 0-indexed
+    }
+    
+    // Pattern 2: Match against layerLabels (e.g., "GB @ DET Q1" matches layerLabels[0])
+    if (layerLabels && layerLabels.length > 0) {
+      for (let i = 0; i < layerLabels.length; i++) {
+        if (label.includes(layerLabels[i])) {
+          return i;
+        }
+      }
+    }
+    
+    // Fallback: try to use prize index position
+    return 0;
+  };
+
   // Check if a square is a winner and get its prize index
   const getWinnerInfo = (squareNumber: number): { label: string; displayLabel: string; prizeIndex: number; colorIndex: number } | undefined => {
     const winner = winners.find(w => w.squareNumber === squareNumber);
@@ -133,19 +157,15 @@ export default function SquareGrid({
     const prizeIndex = prizes.findIndex(p => p.label === winner.label);
     const safePrizeIndex = prizeIndex >= 0 ? prizeIndex : 0;
     
-    // Determine color index based on board type:
-    // - Multi-game boards: group prizes by game, each game gets one color
-    // - Single-game boards (≤8 prizes): each prize gets its own color (Q1=0, Q2=1, etc.)
-    // 
-    // Detect number of games from layerLabels or derive from prize count
+    // Determine color index by parsing game number from the prize label
+    // This handles both "GM X" format and team name format
     const numGames = layerLabels && layerLabels.length > 0 ? layerLabels.length : 1;
-    const isMultiGameBoard = numGames > 1 && prizes.length > 8;
+    const isMultiGameBoard = numGames > 1 || prizes.length > 8;
     
     let colorIndex: number;
     if (isMultiGameBoard) {
-      // Calculate prizes per game dynamically (could be 4, 5, 8 prizes per game)
-      const prizesPerGame = Math.floor(prizes.length / numGames);
-      colorIndex = prizesPerGame > 0 ? Math.floor(safePrizeIndex / prizesPerGame) : 0;
+      // Extract game number directly from the prize label
+      colorIndex = extractGameNumber(winner.label);
     } else {
       // Single-game: each prize has unique color
       colorIndex = safePrizeIndex;
