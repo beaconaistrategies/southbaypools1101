@@ -27,6 +27,30 @@ function hexToRgb(hex: string): string {
   return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
 }
 
+// Extract game number from a prize label
+// Supports formats like: "GM 1 Q1", "GM 2 HALF", "GB @ DET Q1", etc.
+function extractGameNumber(label: string, layerLabels: string[]): number {
+  if (!label) return 0;
+  
+  // Pattern 1: "GM X" format (e.g., "GM 1 Q1", "GM 2 HALF")
+  const gmMatch = label.match(/GM\s*(\d+)/i);
+  if (gmMatch) {
+    return parseInt(gmMatch[1], 10) - 1; // Convert to 0-indexed
+  }
+  
+  // Pattern 2: Match against layerLabels (e.g., "GB @ DET Q1" matches layerLabels[0])
+  if (layerLabels && layerLabels.length > 0) {
+    for (let i = 0; i < layerLabels.length; i++) {
+      if (label.includes(layerLabels[i])) {
+        return i;
+      }
+    }
+  }
+  
+  // Fallback
+  return 0;
+}
+
 export default function WinnersPanel({
   prizes = [],
   winners = [],
@@ -197,30 +221,47 @@ export default function WinnersPanel({
   // Get the period labels for this board configuration
   const periodLabels = getPeriodLabels();
 
-  // Build games array from actual prizes
-  const games = Array.from({ length: numGames }, (_, gameIndex) => {
-    const startIdx = gameIndex * prizesPerGame;
-    const gamePrizes = prizes.slice(startIdx, startIdx + prizesPerGame);
-    
-    // Try to get game name from layer labels or derive from first prize label
-    let gameName = layerLabels[gameIndex];
-    if (!gameName && gamePrizes.length > 0) {
-      // Try to extract game name from prize label (e.g., "GB @ DET Q1" -> "GB @ DET")
-      const firstPrizeLabel = gamePrizes[0].label;
-      const periodMatch = periodLabels.find((p: string) => firstPrizeLabel.endsWith(p) || firstPrizeLabel.endsWith(` ${p}`));
-      if (periodMatch) {
-        gameName = firstPrizeLabel.replace(new RegExp(`\\s*${periodMatch}$`), '').trim();
-      }
+  // Build games array by grouping prizes by their extracted game number
+  // This handles both "GM X" format and team name format correctly
+  const prizesByGame: Map<number, Prize[]> = new Map();
+  
+  prizes.forEach(prize => {
+    const gameNum = extractGameNumber(prize.label, layerLabels);
+    if (!prizesByGame.has(gameNum)) {
+      prizesByGame.set(gameNum, []);
     }
-    gameName = gameName || `Game ${gameIndex + 1}`;
-    
-    return {
-      index: gameIndex,
-      name: gameName,
-      prizes: gamePrizes,
-      color: getGameColor(gameIndex)
-    };
+    prizesByGame.get(gameNum)!.push(prize);
   });
+  
+  // Convert to sorted array of games
+  const games = Array.from(prizesByGame.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([gameIndex, gamePrizes]) => {
+      // Try to get game name from layer labels or derive from first prize label
+      let gameName = layerLabels[gameIndex];
+      if (!gameName && gamePrizes.length > 0) {
+        // Try to extract game name from prize label (e.g., "GB @ DET Q1" -> "GB @ DET")
+        const firstPrizeLabel = gamePrizes[0].label;
+        // Check for "GM X" pattern first
+        const gmMatch = firstPrizeLabel.match(/GM\s*(\d+)/i);
+        if (gmMatch) {
+          gameName = `Game ${gmMatch[1]}`;
+        } else {
+          const periodMatch = periodLabels.find((p: string) => firstPrizeLabel.endsWith(p) || firstPrizeLabel.endsWith(` ${p}`));
+          if (periodMatch) {
+            gameName = firstPrizeLabel.replace(new RegExp(`\\s*${periodMatch}$`), '').trim();
+          }
+        }
+      }
+      gameName = gameName || `Game ${gameIndex + 1}`;
+      
+      return {
+        index: gameIndex,
+        name: gameName,
+        prizes: gamePrizes,
+        color: getGameColor(gameIndex)
+      };
+    });
 
   return (
     <div className="space-y-6">
