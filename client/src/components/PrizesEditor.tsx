@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Trash2, AlertCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Plus, Trash2, AlertCircle, Zap } from "lucide-react";
 import type { Prize } from "@shared/schema";
 
 interface PrizesEditorProps {
@@ -58,6 +59,33 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
     onUpdate(updated, true); // labelsChanged = true (count changed)
   };
 
+  // Quick Fill state
+  const [standardAmount, setStandardAmount] = useState("");
+  const [oppositeAmount, setOppositeAmount] = useState("");
+
+  // Quick Fill handler - applies amounts based on label keywords
+  const handleQuickFill = () => {
+    const updated = localPrizes.map(prize => {
+      const label = prize.label.toUpperCase();
+      // Check if it's an "Opposite" prize
+      const isOpposite = label.includes("OPP") || label.includes("OPPOSITE");
+      // Check if it's a standard period (Q1, Q2, Q3, Q4, HALF, FINAL)
+      const isStandard = !isOpposite && (
+        label.includes("Q1") || label.includes("Q2") || label.includes("Q3") || label.includes("Q4") ||
+        label.includes("HALF") || label.includes("FINAL")
+      );
+      
+      if (isOpposite && oppositeAmount) {
+        return { ...prize, amount: oppositeAmount };
+      } else if (isStandard && standardAmount) {
+        return { ...prize, amount: standardAmount };
+      }
+      return prize;
+    });
+    setLocalPrizes(updated);
+    onUpdate(updated, false);
+  };
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -91,6 +119,52 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
             For best results, the number of prizes should match the number of layers.
           </AlertDescription>
         </Alert>
+      )}
+
+      {!readOnly && localPrizes.length > 1 && (
+        <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Quick Fill</span>
+          </div>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[120px]">
+              <Label htmlFor="quick-standard" className="text-xs text-muted-foreground">Standard (Q1, HALF, etc.)</Label>
+              <Input
+                id="quick-standard"
+                value={standardAmount}
+                onChange={(e) => setStandardAmount(e.target.value)}
+                placeholder="$100"
+                className="h-8"
+                data-testid="input-quick-fill-standard"
+              />
+            </div>
+            <div className="flex-1 min-w-[120px]">
+              <Label htmlFor="quick-opposite" className="text-xs text-muted-foreground">Opposite Periods</Label>
+              <Input
+                id="quick-opposite"
+                value={oppositeAmount}
+                onChange={(e) => setOppositeAmount(e.target.value)}
+                placeholder="$25"
+                className="h-8"
+                data-testid="input-quick-fill-opposite"
+              />
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={handleQuickFill}
+              disabled={!standardAmount && !oppositeAmount}
+              data-testid="button-quick-fill-apply"
+            >
+              Apply
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Fills amounts for prizes matching Q1, Q2, Q3, Q4, HALF, FINAL and their Opposite variants.
+          </p>
+        </div>
       )}
 
       <div className="space-y-3">

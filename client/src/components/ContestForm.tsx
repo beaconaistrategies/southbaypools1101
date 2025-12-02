@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shuffle, Folder as FolderIcon } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Shuffle, Folder as FolderIcon, ChevronDown } from "lucide-react";
 import SquareSelector from "./SquareSelector";
 import ReserveSquares, { type ReservedSquare } from "./ReserveSquares";
 import PrizesEditor from "./PrizesEditor";
@@ -582,16 +583,23 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
         />
       </Card>
 
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Reserved Squares</h3>
-        <ReserveSquares
-          reservedSquares={reservedSquares}
-          onReservationsChange={setReservedSquares}
-          disabledSquares={Array.from({ length: 100 }, (_, i) => i + 1).filter(
-            num => !availableSquares.includes(num)
-          )}
-        />
-      </Card>
+      <Collapsible defaultOpen={false}>
+        <Card className="p-6">
+          <CollapsibleTrigger className="flex items-center justify-between w-full" data-testid="trigger-reserved-squares">
+            <h3 className="text-lg font-semibold">Reserved Squares ({reservedSquares.length})</h3>
+            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 [&[data-state=open]>svg]:rotate-180" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-4">
+            <ReserveSquares
+              reservedSquares={reservedSquares}
+              onReservationsChange={setReservedSquares}
+              disabledSquares={Array.from({ length: 100 }, (_, i) => i + 1).filter(
+                num => !availableSquares.includes(num)
+              )}
+            />
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {layerLabels.length >= 2 && (
         <Card className="p-6">
