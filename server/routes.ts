@@ -1,10 +1,18 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+
+// Helper to get operatorId from authenticated request
+async function getOperatorId(req: Request): Promise<string | null> {
+  const user = (req as any).user;
+  if (!user?.claims?.sub) return null;
+  const dbUser = await storage.getUser(user.claims.sub);
+  return dbUser?.operatorId || null;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -15,7 +23,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      res.json(user);
+      
+      // Also return operator info
+      if (user?.operatorId) {
+        const operator = await storage.getOperator(user.operatorId);
+        res.json({ ...user, operator });
+      } else {
+        res.json(user);
+      }
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
@@ -23,10 +38,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   // Contest routes
   
-  // Get all contests with square counts
-  app.get("/api/contests", async (req, res) => {
+  // Get all contests with square counts (operator-scoped for authenticated users)
+  app.get("/api/contests", isAdmin, async (req, res) => {
     try {
-      const contests = await storage.getAllContests();
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      const contests = await storage.getAllContests(operatorId);
       
       // Fetch square counts for all contests in parallel
       const contestsWithCounts = await Promise.all(
@@ -72,14 +92,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a contest with initial squares (admin only)
   app.post("/api/contests", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      // Check contest limits
+      const operator = await storage.getOperator(operatorId);
+      if (operator) {
+        const contestCount = await storage.countContestsByOperator(operatorId);
+        if (contestCount >= operator.maxContests) {
+          return res.status(403).json({ 
+            error: "Contest limit reached", 
+            message: `You can have a maximum of ${operator.maxContests} contests. Upgrade your plan for more.` 
+          });
+        }
+      }
+      
       // Validate contest data
       const contestData = insertContestSchema.parse({
         ...req.body,
         eventDate: new Date(req.body.eventDate),
       });
       
-      // Create the contest
-      const contest = await storage.createContest(contestData);
+      // Create the contest with operatorId
+      const contest = await storage.createContest({ ...contestData, operatorId });
       
       // Get available squares and reserved squares from request body
       const availableSquares = req.body.availableSquares || Array.from({ length: 100 }, (_, i) => i + 1);
@@ -277,9 +314,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Clone a contest (admin only)
   app.post("/api/contests/:id/clone", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
       const originalContest = await storage.getContest(req.params.id);
       if (!originalContest) {
         return res.status(404).json({ error: "Contest not found" });
+      }
+      
+      // Verify contest belongs to operator
+      if (originalContest.operatorId !== operatorId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       // Create new contest with cloned settings
@@ -298,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         webhookUrl: originalContest.webhookUrl,
       });
 
-      const clonedContest = await storage.createContest(clonedContestData);
+      const clonedContest = await storage.createContest({ ...clonedContestData, operatorId });
 
       // Create fresh squares for the cloned contest
       const squaresToCreate = Array.from({ length: 100 }, (_, i) => ({
@@ -321,11 +368,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get contests by participant email
+  // Get contests by participant email (searches across all operators)
   app.get("/api/my-contests/:email", async (req, res) => {
     try {
       const email = req.params.email.toLowerCase().trim();
-      const contests = await storage.getAllContests();
+      const contests = await storage.getAllContestsGlobal();
       const participations: Array<{
         contestId: string;
         contestName: string;
@@ -560,10 +607,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Folder routes
   
-  // Get all folders
-  app.get("/api/folders", async (req, res) => {
+  // Get all folders (operator-scoped)
+  app.get("/api/folders", isAdmin, async (req, res) => {
     try {
-      const folders = await storage.getAllFolders();
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      const folders = await storage.getAllFolders(operatorId);
       res.json(folders);
     } catch (error) {
       console.error("Error fetching folders:", error);
@@ -574,8 +626,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a folder (admin only)
   app.post("/api/folders", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
       const folderData = insertFolderSchema.parse(req.body);
-      const folder = await storage.createFolder(folderData);
+      const folder = await storage.createFolder({ ...folderData, operatorId });
       res.status(201).json(folder);
     } catch (error) {
       if (error instanceof z.ZodError) {

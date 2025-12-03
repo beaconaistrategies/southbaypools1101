@@ -23,6 +23,7 @@ export interface IStorage {
   getContest(id: string): Promise<Contest | undefined>;
   getContestBySlug(slug: string, operatorId?: string): Promise<Contest | undefined>;
   getAllContests(operatorId: string): Promise<Contest[]>;
+  getAllContestsGlobal(): Promise<Contest[]>;
   createContest(contest: InsertContest & { operatorId: string }): Promise<Contest>;
   updateContest(id: string, contest: Partial<InsertContest>): Promise<Contest | undefined>;
   deleteContest(id: string): Promise<void>;
@@ -121,6 +122,10 @@ export class DbStorage implements IStorage {
 
   async getAllContests(operatorId: string): Promise<Contest[]> {
     return await db.select().from(contests).where(eq(contests.operatorId, operatorId));
+  }
+
+  async getAllContestsGlobal(): Promise<Contest[]> {
+    return await db.select().from(contests);
   }
 
   async createContest(contest: InsertContest & { operatorId: string }): Promise<Contest> {

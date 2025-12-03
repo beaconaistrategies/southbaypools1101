@@ -50,6 +50,14 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 50);
+}
+
 async function upsertUser(
   claims: any,
 ) {
@@ -70,13 +78,36 @@ async function upsertUser(
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users);
     const isFirstUser = count === 0;
     
+    // Create an operator for the new user
+    const firstName = claims["first_name"] || "";
+    const lastName = claims["last_name"] || "";
+    const operatorName = `${firstName} ${lastName}`.trim() || claims["email"]?.split("@")[0] || "My Pools";
+    
+    // Generate unique slug
+    let baseSlug = generateSlug(operatorName);
+    let slug = baseSlug;
+    let suffix = 1;
+    while (await storage.getOperatorBySlug(slug)) {
+      slug = `${baseSlug}-${suffix}`;
+      suffix++;
+    }
+    
+    const operator = await storage.createOperator({
+      name: operatorName,
+      slug,
+      plan: "free",
+      status: "trial",
+      maxContests: 3,
+    });
+    
     await storage.upsertUser({
       id: claims["sub"],
       email: claims["email"],
       firstName: claims["first_name"],
       lastName: claims["last_name"],
       profileImageUrl: claims["profile_image_url"],
-      isAdmin: isFirstUser,
+      operatorId: operator.id,
+      isAdmin: true, // All new users are admins of their own operator
     });
   }
 }
