@@ -1,11 +1,35 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, pgEnum, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Define enums for type safety
 export const contestStatusEnum = pgEnum("contest_status", ["open", "locked"]);
 export const squareStatusEnum = pgEnum("square_status", ["available", "taken", "disabled"]);
+export const operatorPlanEnum = pgEnum("operator_plan", ["free", "basic", "pro"]);
+export const operatorStatusEnum = pgEnum("operator_status", ["active", "suspended", "trial"]);
+
+// Operators table - represents a pool operator/tenant
+export const operators = pgTable("operators", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: varchar("slug", { length: 100 }).unique().notNull(),
+  plan: operatorPlanEnum("plan").notNull().default("free"),
+  status: operatorStatusEnum("status").notNull().default("trial"),
+  billingCustomerId: varchar("billing_customer_id"),
+  maxContests: integer("max_contests").notNull().default(3),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export const insertOperatorSchema = createInsertSchema(operators).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOperator = z.infer<typeof insertOperatorSchema>;
+export type Operator = typeof operators.$inferSelect;
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -21,6 +45,7 @@ export const sessions = pgTable(
 // User storage table for Replit Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
@@ -45,9 +70,12 @@ export type Winner = {
 
 export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull().unique(),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  uniqueIndex("folders_operator_name_unique").on(table.operatorId, table.name),
+]);
 
 export const insertFolderSchema = createInsertSchema(folders).omit({
   id: true,
@@ -59,8 +87,9 @@ export type Folder = typeof folders.$inferSelect;
 
 export const contests = pgTable("contests", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  slug: varchar("slug", { length: 100 }).unique(),
+  slug: varchar("slug", { length: 100 }),
   eventDate: timestamp("event_date").notNull(),
   topTeam: text("top_team").notNull(),
   leftTeam: text("left_team").notNull(),
@@ -82,7 +111,9 @@ export const contests = pgTable("contests", {
   q4Winner: text("q4_winner"),
   webhookUrl: text("webhook_url"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  uniqueIndex("contests_operator_slug_unique").on(table.operatorId, table.slug),
+]);
 
 // Reserved slugs that cannot be used for contests
 const RESERVED_SLUGS = [
