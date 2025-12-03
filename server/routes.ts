@@ -68,15 +68,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get a single contest by ID or slug
+  // Get a single contest by ID or slug (supports ?operator=<operatorSlug> for disambiguation)
   app.get("/api/contests/:identifier", async (req, res) => {
     try {
       const identifier = req.params.identifier;
+      const operatorSlug = req.query.operator as string | undefined;
       
-      // Try to fetch by slug first, then by ID
-      let contest = await storage.getContestBySlug(identifier);
+      // If operator slug provided, resolve operator first
+      let operatorId: string | undefined;
+      if (operatorSlug) {
+        const operator = await storage.getOperatorBySlug(operatorSlug);
+        if (!operator) {
+          return res.status(404).json({ error: "Operator not found" });
+        }
+        operatorId = operator.id;
+      }
+      
+      // Try to fetch by slug first (with optional operator scoping), then by ID
+      let contest = await storage.getContestBySlug(identifier, operatorId);
       if (!contest) {
-        contest = await storage.getContest(identifier);
+        // If searching by ID, still verify operator ownership if operatorId is provided
+        const contestById = await storage.getContest(identifier);
+        if (contestById) {
+          if (operatorId && contestById.operatorId !== operatorId) {
+            return res.status(404).json({ error: "Contest not found" });
+          }
+          contest = contestById;
+        }
       }
       
       if (!contest) {
@@ -195,7 +213,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a contest (admin only)
   app.patch("/api/contests/:id", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
       const contestId = req.params.id;
+      
+      // Verify contest belongs to operator
+      const existingContest = await storage.getContest(contestId);
+      if (!existingContest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+      if (existingContest.operatorId !== operatorId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
       
       // Convert eventDate if present
       const bodyWithDate = req.body.eventDate 
@@ -303,6 +335,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a contest (admin only)
   app.delete("/api/contests/:id", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      // Verify contest belongs to operator
+      const contest = await storage.getContest(req.params.id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+      if (contest.operatorId !== operatorId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       await storage.deleteContest(req.params.id);
       res.status(204).send();
     } catch (error) {
@@ -646,6 +692,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a folder (admin only)
   app.delete("/api/folders/:id", isAdmin, async (req, res) => {
     try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      // Verify folder belongs to operator
+      const folder = await storage.getFolder(req.params.id);
+      if (!folder) {
+        return res.status(404).json({ error: "Folder not found" });
+      }
+      if (folder.operatorId !== operatorId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       await storage.deleteFolder(req.params.id);
       res.status(204).send();
     } catch (error) {
