@@ -30,13 +30,27 @@ Preferred communication style: Simple, everyday language.
 
 **Database Layer:** Drizzle ORM for type-safe interactions with Neon serverless PostgreSQL via WebSocket. Uses a schema-first approach with Zod validation.
 
-**Data Models:** Users (admin authentication), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info).
+**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info).
 
-**Key Architectural Decisions:** Session-based authentication, real-time data consistency via query invalidation, and separation of concerns using a storage layer abstraction.
+**Key Architectural Decisions:** Session-based authentication, real-time data consistency via query invalidation, separation of concerns using a storage layer abstraction, and multi-tenant operator isolation.
+
+### Multi-Tenancy Architecture (Phase 1)
+
+**Operator Model:** Each operator represents an independent pool management organization. Operators have:
+- `name`, `slug` (unique URL identifier), `plan` (free/pro/enterprise), `status` (trial/active/suspended/cancelled)
+- `maxContests` limit per plan, `stripeCustomerId` for future billing integration
+
+**Data Isolation:** All admin endpoints are scoped by operatorId. Users, contests, and folders belong to a single operator. Cross-operator data access is prevented at the API level.
+
+**URL Patterns:**
+- UUID-based access: `/board/{contestId}` - Works globally (UUIDs are unique)
+- Operator-scoped slugs: `/pool/{operatorSlug}/{contestSlug}` - Requires operator context
+
+**Auth Flow:** First user login creates a new operator and assigns admin privileges. Subsequent logins preserve operator/admin assignments.
 
 ### System Design Choices
 
-**Authentication:** Admin-only access via Replit Auth (OIDC) with Google/GitHub/email login. First user to log in becomes an admin. Protected routes ensure secure access.
+**Authentication:** Admin-only access via Replit Auth (OIDC) with Google/GitHub/email login. Each operator's first user becomes admin. Protected routes ensure secure access. Operator isolation enforced on all admin endpoints.
 
 **Contest Configuration:**
 - **Layer Labels:** Consolidated `layerLabels` for both axes, displayed diagonally in the pink corner area.
