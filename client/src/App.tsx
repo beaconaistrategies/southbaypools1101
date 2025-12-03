@@ -71,6 +71,7 @@ function Router() {
         {() => <ProtectedRoute component={ContestManager} />}
       </Route>
       <Route path="/board/:id" component={PublicBoard} />
+      <Route path="/pool/:operatorSlug/:contestSlug" component={PublicBoard} />
       <Route path="/my-contests" component={MyContests} />
       <Route path="/:slug" component={PublicBoard} />
       <Route component={NotFound} />

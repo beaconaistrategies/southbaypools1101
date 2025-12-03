@@ -68,33 +68,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get a single contest by ID or slug (supports ?operator=<operatorSlug> for disambiguation)
+  // Get a single contest by ID or slug
+  // ID lookups (UUID format) work globally since IDs are unique
+  // Slug lookups require ?operator=<operatorSlug> parameter for disambiguation
   app.get("/api/contests/:identifier", async (req, res) => {
     try {
       const identifier = req.params.identifier;
       const operatorSlug = req.query.operator as string | undefined;
       
-      // If operator slug provided, resolve operator first
-      let operatorId: string | undefined;
-      if (operatorSlug) {
-        const operator = await storage.getOperatorBySlug(operatorSlug);
+      // Check if identifier looks like a UUID (ID lookup)
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuidLookup = uuidPattern.test(identifier);
+      
+      // If looking up by slug, require operator context
+      if (!isUuidLookup && !operatorSlug) {
+        return res.status(400).json({ 
+          error: "Operator context required", 
+          message: "Slug-based contest lookups require ?operator=<operatorSlug> parameter" 
+        });
+      }
+      
+      let contest: any = null;
+      
+      if (isUuidLookup) {
+        // Direct ID lookup - IDs are globally unique
+        contest = await storage.getContest(identifier);
+      } else {
+        // Slug lookup with operator context
+        const operator = await storage.getOperatorBySlug(operatorSlug!);
         if (!operator) {
           return res.status(404).json({ error: "Operator not found" });
         }
-        operatorId = operator.id;
-      }
-      
-      // Try to fetch by slug first (with optional operator scoping), then by ID
-      let contest = await storage.getContestBySlug(identifier, operatorId);
-      if (!contest) {
-        // If searching by ID, still verify operator ownership if operatorId is provided
-        const contestById = await storage.getContest(identifier);
-        if (contestById) {
-          if (operatorId && contestById.operatorId !== operatorId) {
-            return res.status(404).json({ error: "Contest not found" });
-          }
-          contest = contestById;
-        }
+        contest = await storage.getContestBySlug(identifier, operator.id);
       }
       
       if (!contest) {

@@ -14,16 +14,25 @@ import type { Contest, Square } from "@shared/schema";
 export default function PublicBoard() {
   const { toast } = useToast();
   const params = useParams();
-  // Support both /board/:id (UUID) and /:slug (slug) routes
-  const identifier = params.id || params.slug || "1";
+  // Support multiple route patterns:
+  // - /board/:id (UUID lookup)
+  // - /pool/:operatorSlug/:contestSlug (operator-scoped slug lookup)
+  // - /:slug (legacy slug lookup - needs operator context)
+  const operatorSlug = params.operatorSlug;
+  const contestSlug = params.contestSlug;
+  const identifier = params.id || contestSlug || params.slug || "1";
   const [selectedSquare, setSelectedSquare] = useState<number | null>(null);
   const [showRandomClaimModal, setShowRandomClaimModal] = useState(false);
 
-  // Fetch contest data (API supports both UUID and slug)
+  // Fetch contest data (API supports UUID or operator-scoped slug)
   const { data: contest, isLoading: contestLoading } = useQuery<Contest>({
-    queryKey: ["/api/contests", identifier],
+    queryKey: ["/api/contests", identifier, operatorSlug],
     queryFn: async () => {
-      const response = await fetch(`/api/contests/${identifier}`);
+      let url = `/api/contests/${identifier}`;
+      if (operatorSlug) {
+        url += `?operator=${encodeURIComponent(operatorSlug)}`;
+      }
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch contest");
       return response.json();
     },
