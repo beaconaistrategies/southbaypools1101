@@ -43,8 +43,10 @@ Preferred communication style: Simple, everyday language.
 **Data Isolation:** All admin endpoints are scoped by operatorId. Users, contests, and folders belong to a single operator. Cross-operator data access is prevented at the API level.
 
 **URL Patterns:**
-- UUID-based access: `/board/{contestId}` - Works globally (UUIDs are unique)
-- Operator-scoped slugs: `/pool/{operatorSlug}/{contestSlug}` - Requires operator context
+- UUID-based access: `/board/{contestId}` - Works globally (UUIDs are unique), fallback format
+- Primary operator short URLs: `/{contestSlug}` - Short friendly URLs for the primary operator (south-bay-pools)
+- Other operator URLs: `/{operatorSlug}/{contestSlug}` - Prefixed with operator slug for other operators
+- Legacy format: `/pool/{operatorSlug}/{contestSlug}` - Still supported for backwards compatibility
 
 **Auth Flow:** First user login creates a new operator and assigns admin privileges. Subsequent logins preserve operator/admin assignments.
 
