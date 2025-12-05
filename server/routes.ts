@@ -70,7 +70,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get a single contest by ID or slug
   // ID lookups (UUID format) work globally since IDs are unique
-  // Slug lookups require ?operator=<operatorSlug> parameter for disambiguation
+  // Slug lookups: If no operator specified, check the primary operator (south-bay-pools) first
+  // Otherwise, use ?operator=<operatorSlug> parameter for disambiguation
   app.get("/api/contests/:identifier", async (req, res) => {
     try {
       const identifier = req.params.identifier;
@@ -80,26 +81,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const isUuidLookup = uuidPattern.test(identifier);
       
-      // If looking up by slug, require operator context
-      if (!isUuidLookup && !operatorSlug) {
-        return res.status(400).json({ 
-          error: "Operator context required", 
-          message: "Slug-based contest lookups require ?operator=<operatorSlug> parameter" 
-        });
-      }
-      
       let contest: any = null;
       
       if (isUuidLookup) {
         // Direct ID lookup - IDs are globally unique
         contest = await storage.getContest(identifier);
-      } else {
-        // Slug lookup with operator context
-        const operator = await storage.getOperatorBySlug(operatorSlug!);
+      } else if (operatorSlug) {
+        // Explicit operator context provided
+        const operator = await storage.getOperatorBySlug(operatorSlug);
         if (!operator) {
           return res.status(404).json({ error: "Operator not found" });
         }
         contest = await storage.getContestBySlug(identifier, operator.id);
+      } else {
+        // No operator context - try the primary operator (south-bay-pools) first
+        const primaryOperator = await storage.getOperatorBySlug("south-bay-pools");
+        if (primaryOperator) {
+          contest = await storage.getContestBySlug(identifier, primaryOperator.id);
+        }
       }
       
       if (!contest) {

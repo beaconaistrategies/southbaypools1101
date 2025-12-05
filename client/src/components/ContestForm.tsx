@@ -12,6 +12,7 @@ import { Shuffle, Folder as FolderIcon, ChevronDown } from "lucide-react";
 import SquareSelector from "./SquareSelector";
 import ReserveSquares, { type ReservedSquare } from "./ReserveSquares";
 import PrizesEditor from "./PrizesEditor";
+import { useAuth } from "@/hooks/useAuth";
 import type { Prize, Folder } from "@shared/schema";
 
 type PayoutPreset = "quarters" | "halves" | "custom";
@@ -48,6 +49,10 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
   const [folderId, setFolderId] = useState<string | null>(initialData?.folderId || null);
   const [redRowsCount, setRedRowsCount] = useState(initialData?.redRowsCount || 2);
 
+  const { user } = useAuth();
+  const operatorSlug = (user as any)?.operator?.slug;
+  const isPrimaryOperator = operatorSlug === "south-bay-pools";
+  
   const { data: folders = [] } = useQuery<Folder[]>({
     queryKey: ["/api/folders"],
   });
@@ -253,7 +258,10 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
               data-testid="input-contest-slug"
             />
             <p className="text-sm text-muted-foreground">
-              Creates a friendly URL like: yourdomain.com/{slug || generateSlug(name) || "thanksgiving"}
+              {isPrimaryOperator 
+                ? `Creates a friendly URL like: southbaypools1101.com/${slug || generateSlug(name) || "thanksgiving"}`
+                : `Creates a friendly URL like: southbaypools1101.com/${operatorSlug || "your-name"}/${slug || generateSlug(name) || "thanksgiving"}`
+              }
             </p>
           </div>
 

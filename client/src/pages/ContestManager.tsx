@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Lock, Unlock, Shuffle, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportContestToCSV } from "@/lib/csvExport";
 import type { Contest, Square, Prize, Winner } from "@shared/schema";
@@ -31,9 +32,13 @@ import {
 
 export default function ContestManager() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const params = useParams();
   const contestId = params.id || "1";
+  
+  const operatorSlug = (user as any)?.operator?.slug;
+  const isPrimaryOperator = operatorSlug === "south-bay-pools";
   
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
   const [selectedSquareToRelease, setSelectedSquareToRelease] = useState<number | null>(null);
@@ -318,7 +323,19 @@ export default function ContestManager() {
   };
 
   const handleCopyPublicLink = async () => {
-    const publicUrl = `${window.location.origin}/board/${contestId}`;
+    let publicUrl: string;
+    const contestSlug = (contest as any)?.slug;
+    
+    if (contestSlug) {
+      if (isPrimaryOperator) {
+        publicUrl = `${window.location.origin}/${contestSlug}`;
+      } else {
+        publicUrl = `${window.location.origin}/${operatorSlug}/${contestSlug}`;
+      }
+    } else {
+      publicUrl = `${window.location.origin}/board/${contestId}`;
+    }
+    
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast({
@@ -514,7 +531,13 @@ export default function ContestManager() {
                   asChild
                   data-testid="button-view-public"
                 >
-                  <a href={`/board/${contestId}`} target="_blank" rel="noopener noreferrer">
+                  <a href={
+                    (contest as any)?.slug 
+                      ? (isPrimaryOperator 
+                          ? `/${(contest as any).slug}` 
+                          : `/${operatorSlug}/${(contest as any).slug}`)
+                      : `/board/${contestId}`
+                  } target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View Public Board
                   </a>
