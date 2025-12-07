@@ -99,7 +99,7 @@ export default function SquareGrid({
     };
   };
 
-  // Extract just the period part from a prize label (e.g., "GB @ DET Q1" -> "Q1")
+  // Extract the period part from a prize label, preserving any suffix (e.g., "GB @ DET Q1 +2" -> "Q1 +2")
   const extractPeriodLabel = (fullLabel: string | undefined): string => {
     if (!fullLabel) return "";
     
@@ -107,17 +107,14 @@ export default function SquareGrid({
     const periods = ["Q1", "Q2", "Q3", "Q4", "HALF", "FINAL"];
     const upperLabel = fullLabel.toUpperCase();
     
-    // Check for opposite variants first
+    // Find which period is in the label and extract it with any suffix
     for (const period of periods) {
-      if (upperLabel.includes(`${period} OPP`) || upperLabel.includes(`${period} OPPOSITE`)) {
-        return `${period} Opp`;
-      }
-    }
-    
-    // Check for standard periods
-    for (const period of periods) {
-      if (upperLabel.includes(period)) {
-        return period;
+      const periodIndex = upperLabel.indexOf(period);
+      if (periodIndex !== -1) {
+        // Extract from the period to the end of the string, preserving the suffix
+        const fromPeriod = fullLabel.substring(periodIndex);
+        // Clean up by trimming and returning
+        return fromPeriod.trim();
       }
     }
     
