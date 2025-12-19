@@ -20,7 +20,7 @@ Preferred communication style: Simple, everyday language.
 
 **Routing:** wouter for client-side routing.
 
-**Key Pages:** Login, Admin Dashboard, New/Edit Contest, Contest Manager, Public Board.
+**Key Pages:** Login, Admin Dashboard, New/Edit Contest, Contest Manager, Public Board, Hub (landing page), Join (participant portal).
 
 ### Backend Architecture
 
@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 
 **Database Layer:** Drizzle ORM for type-safe interactions with Neon serverless PostgreSQL via WebSocket. Uses a schema-first approach with Zod validation.
 
-**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info).
+**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Participants (master accounts with Replit Auth linking), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info, optional participantId link).
 
 **Key Architectural Decisions:** Session-based authentication, real-time data consistency via query invalidation, separation of concerns using a storage layer abstraction, and multi-tenant operator isolation.
 
