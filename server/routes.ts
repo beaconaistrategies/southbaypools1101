@@ -536,17 +536,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a square by contest ID and index (for claiming a square)
-  app.patch("/api/contests/:contestId/squares/:index", async (req, res) => {
+  app.patch("/api/contests/:contestId/squares/:index", async (req: any, res) => {
     try {
       const index = parseInt(req.params.index);
       
       // Validate update data
       const updateData = updateSquareSchema.parse(req.body);
       
+      // If user is signed in and claim email matches, link their participant account
+      let participantId: string | undefined;
+      if (req.user?.claims?.sub && updateData.status === "taken" && updateData.holderEmail) {
+        const authId = req.user.claims.sub;
+        const sessionEmail = req.user.claims.email?.toLowerCase();
+        const claimEmail = updateData.holderEmail?.toLowerCase();
+        
+        // Only link if the claim email matches the signed-in user's email
+        if (sessionEmail && claimEmail && sessionEmail === claimEmail) {
+          let participant = await storage.getParticipantByAuthId(authId);
+          if (!participant) {
+            participant = await storage.getParticipantByEmail(sessionEmail);
+          }
+          
+          if (participant) {
+            participantId = participant.id;
+          }
+        }
+      }
+      
       const square = await storage.updateSquareByContestAndIndex(
         req.params.contestId,
         index,
-        updateData
+        { ...updateData, participantId }
       );
       
       if (!square) {
@@ -583,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Random square assignment
-  app.post("/api/contests/:id/squares/random", async (req, res) => {
+  app.post("/api/contests/:id/squares/random", async (req: any, res) => {
     try {
       const contest = await storage.getContest(req.params.id);
       if (!contest) {
@@ -613,6 +633,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const participantData = schema.parse(req.body);
 
+      // If user is signed in and claim email matches, link their participant account
+      let participantId: string | undefined;
+      if (req.user?.claims?.sub) {
+        const authId = req.user.claims.sub;
+        const sessionEmail = req.user.claims.email?.toLowerCase();
+        const claimEmail = participantData.holderEmail?.toLowerCase();
+        
+        // Only link if the claim email matches the signed-in user's email
+        if (sessionEmail && claimEmail && sessionEmail === claimEmail) {
+          let participant = await storage.getParticipantByAuthId(authId);
+          if (!participant) {
+            participant = await storage.getParticipantByEmail(sessionEmail);
+          }
+          
+          if (participant) {
+            participantId = participant.id;
+          }
+        }
+      }
+
       // Claim the random square
       const claimedSquare = await storage.updateSquareByContestAndIndex(
         req.params.id,
@@ -620,6 +660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         {
           status: "taken",
           ...participantData,
+          participantId,
         }
       );
 
