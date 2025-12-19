@@ -1,6 +1,6 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, contests, squares, users, folders, operators } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, contests, squares, users, folders, operators, participants } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 
 export interface IStorage {
   // Operator methods
@@ -12,6 +12,13 @@ export interface IStorage {
   // User methods for Replit Auth
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  
+  // Participant methods (master accounts for pool participants)
+  getParticipant(id: string): Promise<Participant | undefined>;
+  getParticipantByAuthId(authId: string): Promise<Participant | undefined>;
+  getParticipantByEmail(email: string): Promise<Participant | undefined>;
+  upsertParticipant(participant: InsertParticipant): Promise<Participant>;
+  getParticipantContests(participantId: string): Promise<{ contest: Contest; squares: Square[] }[]>;
   
   // Folder methods (operator-scoped)
   getAllFolders(operatorId: string): Promise<Folder[]>;
@@ -87,6 +94,70 @@ export class DbStorage implements IStorage {
       })
       .returning();
     return result[0];
+  }
+
+  // Participant methods (master accounts for pool participants)
+  async getParticipant(id: string): Promise<Participant | undefined> {
+    const result = await db.select().from(participants).where(eq(participants.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getParticipantByAuthId(authId: string): Promise<Participant | undefined> {
+    const result = await db.select().from(participants).where(eq(participants.authId, authId)).limit(1);
+    return result[0];
+  }
+
+  async getParticipantByEmail(email: string): Promise<Participant | undefined> {
+    const result = await db.select().from(participants).where(eq(participants.email, email)).limit(1);
+    return result[0];
+  }
+
+  async upsertParticipant(participantData: InsertParticipant): Promise<Participant> {
+    // Try to find by authId first, then by email
+    if (participantData.authId) {
+      const existing = await this.getParticipantByAuthId(participantData.authId);
+      if (existing) {
+        const result = await db.update(participants).set({
+          ...participantData,
+          updatedAt: new Date(),
+        }).where(eq(participants.id, existing.id)).returning();
+        return result[0];
+      }
+    }
+    
+    // Check if email already exists
+    const existingByEmail = await this.getParticipantByEmail(participantData.email);
+    if (existingByEmail) {
+      // Update with authId if we have one now
+      const result = await db.update(participants).set({
+        ...participantData,
+        updatedAt: new Date(),
+      }).where(eq(participants.id, existingByEmail.id)).returning();
+      return result[0];
+    }
+    
+    // Create new participant
+    const result = await db.insert(participants).values(participantData).returning();
+    return result[0];
+  }
+
+  async getParticipantContests(participantId: string): Promise<{ contest: Contest; squares: Square[] }[]> {
+    // Get all squares for this participant
+    const participantSquares = await db.select().from(squares).where(eq(squares.participantId, participantId));
+    
+    // Group by contest
+    const contestIds = Array.from(new Set(participantSquares.map(s => s.contestId)));
+    const result: { contest: Contest; squares: Square[] }[] = [];
+    
+    for (const contestId of contestIds) {
+      const contest = await this.getContest(contestId);
+      if (contest) {
+        const contestSquares = participantSquares.filter(s => s.contestId === contestId);
+        result.push({ contest, squares: contestSquares });
+      }
+    }
+    
+    return result;
   }
 
   // Folder methods (operator-scoped)

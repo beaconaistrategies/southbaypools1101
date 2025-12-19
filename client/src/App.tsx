@@ -13,6 +13,8 @@ import EditContest from "@/pages/EditContest";
 import ContestManager from "@/pages/ContestManager";
 import PublicBoard from "@/pages/PublicBoard";
 import MyContests from "@/pages/MyContests";
+import Hub from "@/pages/Hub";
+import Join from "@/pages/Join";
 import NotFound from "@/pages/not-found";
 
 function LoginRedirect() {
@@ -56,7 +58,8 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={() => <Redirect to="/admin" />} />
+      <Route path="/" component={Hub} />
+      <Route path="/join" component={Join} />
       <Route path="/login" component={LoginRedirect} />
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} />}

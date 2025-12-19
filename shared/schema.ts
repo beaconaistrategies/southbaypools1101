@@ -58,6 +58,27 @@ export const users = pgTable("users", {
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 
+// Participants table - master accounts for pool participants (separate from admin users)
+export const participants = pgTable("participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  authId: varchar("auth_id").unique(), // Replit Auth sub claim
+  email: varchar("email").unique().notNull(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertParticipantSchema = createInsertSchema(participants).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertParticipant = z.infer<typeof insertParticipantSchema>;
+export type Participant = typeof participants.$inferSelect;
+
 export type Prize = {
   label: string;
   amount: string;
@@ -168,6 +189,7 @@ export const squares = pgTable("squares", {
   entryName: text("entry_name"),
   holderName: text("holder_name"),
   holderEmail: text("holder_email"),
+  participantId: varchar("participant_id").references(() => participants.id, { onDelete: "set null" }),
 });
 
 export const insertSquareSchema = createInsertSchema(squares).omit({

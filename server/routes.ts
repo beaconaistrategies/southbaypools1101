@@ -718,6 +718,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== PARTICIPANT HUB ROUTES ==========
+  
+  // Get all public contests for the hub (no auth required)
+  app.get("/api/public/contests", async (req, res) => {
+    try {
+      const allContests = await storage.getAllContestsGlobal();
+      
+      // Get square counts and filter to open contests only
+      const publicContests = await Promise.all(
+        allContests
+          .filter(c => c.status === "open")
+          .map(async (contest) => {
+            const squares = await storage.getContestSquares(contest.id);
+            const takenCount = squares.filter(s => s.status === "taken").length;
+            const availableCount = squares.filter(s => s.status === "available").length;
+            
+            // Get operator info for URL building
+            let operatorSlug = null;
+            if (contest.operatorId) {
+              const operator = await storage.getOperator(contest.operatorId);
+              operatorSlug = operator?.slug;
+            }
+            
+            return {
+              id: contest.id,
+              name: contest.name,
+              slug: contest.slug,
+              eventDate: contest.eventDate,
+              topTeam: contest.topTeam,
+              leftTeam: contest.leftTeam,
+              takenSquares: takenCount,
+              availableSquares: availableCount,
+              totalSquares: squares.length,
+              operatorSlug,
+            };
+          })
+      );
+      
+      // Sort by event date (upcoming first)
+      publicContests.sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
+      
+      res.json(publicContests);
+    } catch (error) {
+      console.error("Error fetching public contests:", error);
+      res.status(500).json({ error: "Failed to fetch contests" });
+    }
+  });
+
+  // Get logged-in participant info
+  app.get("/api/participant/user", isAuthenticated, async (req: any, res) => {
+    try {
+      const authId = req.user.claims.sub;
+      const email = req.user.claims.email;
+      
+      if (!authId) {
+        return res.status(401).json({ message: "No auth ID found" });
+      }
+      
+      // Find participant by authId first
+      let participant = await storage.getParticipantByAuthId(authId);
+      
+      if (participant) {
+        // Already exists - return it
+        return res.json(participant);
+      }
+      
+      // Not found by authId - check by email
+      if (email) {
+        participant = await storage.getParticipantByEmail(email);
+        if (participant) {
+          // Link their auth ID to existing email-based account
+          participant = await storage.upsertParticipant({
+            ...participant,
+            authId,
+          });
+          return res.json(participant);
+        }
+      }
+      
+      // No existing participant - create new one
+      if (!email) {
+        return res.status(400).json({ message: "Email required to create participant" });
+      }
+      
+      participant = await storage.upsertParticipant({
+        authId,
+        email,
+        firstName: req.user.claims.first_name,
+        lastName: req.user.claims.last_name,
+        profileImageUrl: req.user.claims.profile_image_url,
+      });
+      
+      return res.json(participant);
+    } catch (error) {
+      console.error("Error fetching participant:", error);
+      res.status(500).json({ message: "Failed to fetch participant" });
+    }
+  });
+
+  // Get participant's contests (uses email-based lookup for simplicity)
+  app.get("/api/participant/contests", isAuthenticated, async (req: any, res) => {
+    try {
+      const email = req.user.claims.email;
+      
+      if (!email) {
+        return res.json([]);
+      }
+      
+      // Find all squares claimed by this email across all contests
+      const allContests = await storage.getAllContestsGlobal();
+      const entries: Array<{
+        contestId: string;
+        contestName: string;
+        contestSlug: string | null;
+        eventDate: Date;
+        topTeam: string;
+        leftTeam: string;
+        status: string;
+        squareCount: number;
+        squares: Array<{ index: number; entryName: string | null }>;
+      }> = [];
+      
+      for (const contest of allContests) {
+        const squares = await storage.getContestSquares(contest.id);
+        const userSquares = squares.filter(
+          s => s.holderEmail?.toLowerCase() === email.toLowerCase() && s.status === "taken"
+        );
+        
+        if (userSquares.length > 0) {
+          entries.push({
+            contestId: contest.id,
+            contestName: contest.name,
+            contestSlug: contest.slug,
+            eventDate: contest.eventDate,
+            topTeam: contest.topTeam,
+            leftTeam: contest.leftTeam,
+            status: contest.status,
+            squareCount: userSquares.length,
+            squares: userSquares.map(s => ({
+              index: s.index,
+              entryName: s.entryName,
+            })),
+          });
+        }
+      }
+      
+      // Sort by event date (recent first)
+      entries.sort((a, b) => new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime());
+      
+      return res.json(entries);
+    } catch (error) {
+      console.error("Error fetching participant contests:", error);
+      res.status(500).json({ error: "Failed to fetch contests" });
+    }
+  });
+
   // Export contest to CSV
   app.get("/api/contests/:id/export-csv", async (req, res) => {
     try {
