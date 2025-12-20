@@ -1,6 +1,6 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, contests, squares, users, folders, operators, participants } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, asc, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Operator methods
@@ -43,6 +43,34 @@ export interface IStorage {
   updateSquare(id: string, square: Partial<InsertSquare>): Promise<Square | undefined>;
   createSquares(squares: InsertSquare[]): Promise<Square[]>;
   updateSquareByContestAndIndex(contestId: string, index: number, square: Partial<InsertSquare>): Promise<Square | undefined>;
+
+  // Golf Tournament methods
+  getAllGolfTournaments(season?: number): Promise<GolfTournament[]>;
+  getGolfTournament(id: string): Promise<GolfTournament | undefined>;
+  createGolfTournament(tournament: InsertGolfTournament): Promise<GolfTournament>;
+  updateGolfTournament(id: string, tournament: Partial<InsertGolfTournament>): Promise<GolfTournament | undefined>;
+  deleteGolfTournament(id: string): Promise<void>;
+
+  // Golf Pool methods
+  getAllGolfPools(operatorId: string): Promise<GolfPool[]>;
+  getGolfPool(id: string): Promise<GolfPool | undefined>;
+  getGolfPoolBySlug(slug: string, operatorId?: string): Promise<GolfPool | undefined>;
+  createGolfPool(pool: InsertGolfPool & { operatorId: string }): Promise<GolfPool>;
+  updateGolfPool(id: string, pool: Partial<InsertGolfPool>): Promise<GolfPool | undefined>;
+  deleteGolfPool(id: string): Promise<void>;
+
+  // Golf Pool Entry methods
+  getGolfPoolEntries(poolId: string): Promise<GolfPoolEntry[]>;
+  getGolfPoolEntry(id: string): Promise<GolfPoolEntry | undefined>;
+  getGolfPoolEntriesByEmail(email: string): Promise<GolfPoolEntry[]>;
+  createGolfPoolEntry(entry: InsertGolfPoolEntry): Promise<GolfPoolEntry>;
+  updateGolfPoolEntry(id: string, entry: Partial<GolfPoolEntry>): Promise<GolfPoolEntry | undefined>;
+
+  // Golf Pick methods
+  getGolfPicks(entryId: string): Promise<GolfPick[]>;
+  getGolfPicksForWeek(poolId: string, weekNumber: number): Promise<GolfPick[]>;
+  createGolfPick(pick: InsertGolfPick): Promise<GolfPick>;
+  updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -253,6 +281,114 @@ export class DbStorage implements IStorage {
       .set(square)
       .where(and(eq(squares.contestId, contestId), eq(squares.index, index)))
       .returning();
+    return result[0];
+  }
+
+  // Golf Tournament methods
+  async getAllGolfTournaments(season?: number): Promise<GolfTournament[]> {
+    if (season) {
+      return await db.select().from(golfTournaments)
+        .where(eq(golfTournaments.season, season))
+        .orderBy(asc(golfTournaments.startDate));
+    }
+    return await db.select().from(golfTournaments).orderBy(asc(golfTournaments.startDate));
+  }
+
+  async getGolfTournament(id: string): Promise<GolfTournament | undefined> {
+    const result = await db.select().from(golfTournaments).where(eq(golfTournaments.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createGolfTournament(tournament: InsertGolfTournament): Promise<GolfTournament> {
+    const result = await db.insert(golfTournaments).values(tournament).returning();
+    return result[0];
+  }
+
+  async updateGolfTournament(id: string, tournament: Partial<InsertGolfTournament>): Promise<GolfTournament | undefined> {
+    const result = await db.update(golfTournaments).set(tournament).where(eq(golfTournaments.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteGolfTournament(id: string): Promise<void> {
+    await db.delete(golfTournaments).where(eq(golfTournaments.id, id));
+  }
+
+  // Golf Pool methods
+  async getAllGolfPools(operatorId: string): Promise<GolfPool[]> {
+    return await db.select().from(golfPools).where(eq(golfPools.operatorId, operatorId));
+  }
+
+  async getGolfPool(id: string): Promise<GolfPool | undefined> {
+    const result = await db.select().from(golfPools).where(eq(golfPools.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getGolfPoolBySlug(slug: string, operatorId?: string): Promise<GolfPool | undefined> {
+    if (operatorId) {
+      const result = await db.select().from(golfPools)
+        .where(and(eq(golfPools.slug, slug), eq(golfPools.operatorId, operatorId)))
+        .limit(1);
+      return result[0];
+    }
+    const result = await db.select().from(golfPools).where(eq(golfPools.slug, slug)).limit(1);
+    return result[0];
+  }
+
+  async createGolfPool(pool: InsertGolfPool & { operatorId: string }): Promise<GolfPool> {
+    const result = await db.insert(golfPools).values(pool).returning();
+    return result[0];
+  }
+
+  async updateGolfPool(id: string, pool: Partial<InsertGolfPool>): Promise<GolfPool | undefined> {
+    const result = await db.update(golfPools).set(pool).where(eq(golfPools.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteGolfPool(id: string): Promise<void> {
+    await db.delete(golfPools).where(eq(golfPools.id, id));
+  }
+
+  // Golf Pool Entry methods
+  async getGolfPoolEntries(poolId: string): Promise<GolfPoolEntry[]> {
+    return await db.select().from(golfPoolEntries).where(eq(golfPoolEntries.poolId, poolId));
+  }
+
+  async getGolfPoolEntry(id: string): Promise<GolfPoolEntry | undefined> {
+    const result = await db.select().from(golfPoolEntries).where(eq(golfPoolEntries.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getGolfPoolEntriesByEmail(email: string): Promise<GolfPoolEntry[]> {
+    return await db.select().from(golfPoolEntries).where(eq(golfPoolEntries.email, email));
+  }
+
+  async createGolfPoolEntry(entry: InsertGolfPoolEntry): Promise<GolfPoolEntry> {
+    const result = await db.insert(golfPoolEntries).values(entry).returning();
+    return result[0];
+  }
+
+  async updateGolfPoolEntry(id: string, entry: Partial<GolfPoolEntry>): Promise<GolfPoolEntry | undefined> {
+    const result = await db.update(golfPoolEntries).set(entry).where(eq(golfPoolEntries.id, id)).returning();
+    return result[0];
+  }
+
+  // Golf Pick methods
+  async getGolfPicks(entryId: string): Promise<GolfPick[]> {
+    return await db.select().from(golfPicks).where(eq(golfPicks.entryId, entryId)).orderBy(asc(golfPicks.weekNumber));
+  }
+
+  async getGolfPicksForWeek(poolId: string, weekNumber: number): Promise<GolfPick[]> {
+    return await db.select().from(golfPicks)
+      .where(and(eq(golfPicks.poolId, poolId), eq(golfPicks.weekNumber, weekNumber)));
+  }
+
+  async createGolfPick(pick: InsertGolfPick): Promise<GolfPick> {
+    const result = await db.insert(golfPicks).values(pick).returning();
+    return result[0];
+  }
+
+  async updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined> {
+    const result = await db.update(golfPicks).set(pick).where(eq(golfPicks.id, id)).returning();
     return result[0];
   }
 }

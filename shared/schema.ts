@@ -211,3 +211,116 @@ export const updateSquareSchema = insertSquareSchema.partial().omit({
 export type InsertSquare = z.infer<typeof insertSquareSchema>;
 export type UpdateSquare = z.infer<typeof updateSquareSchema>;
 export type Square = typeof squares.$inferSelect;
+
+// ==========================================
+// GOLF SURVIVOR SCHEMA
+// ==========================================
+
+export const golfPoolStatusEnum = pgEnum("golf_pool_status", ["upcoming", "active", "completed"]);
+export const golfEntryStatusEnum = pgEnum("golf_entry_status", ["active", "eliminated"]);
+export const golfPickResultEnum = pgEnum("golf_pick_result", ["pending", "survived", "eliminated"]);
+
+// Golf Tournaments - PGA Tour schedule
+export const golfTournaments = pgTable("golf_tournaments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  season: integer("season").notNull(), // e.g., 2025
+  weekNumber: integer("week_number"), // Week in the survivor pool
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
+export const insertGolfTournamentSchema = createInsertSchema(golfTournaments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertGolfTournament = z.infer<typeof insertGolfTournamentSchema>;
+export type GolfTournament = typeof golfTournaments.$inferSelect;
+
+// Golf Pools - Survivor pool instances
+export const golfPools = pgTable("golf_pools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: varchar("slug", { length: 100 }),
+  season: integer("season").notNull(), // e.g., 2025
+  entryFee: text("entry_fee"), // Display string like "$50"
+  prizePool: text("prize_pool"), // Display string like "$500"
+  status: golfPoolStatusEnum("status").notNull().default("upcoming"),
+  currentWeek: integer("current_week").default(1),
+  pickDeadlineHours: integer("pick_deadline_hours").default(0), // Hours before tournament start
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("golf_pools_operator_slug_unique").on(table.operatorId, table.slug),
+]);
+
+export const insertGolfPoolSchema = createInsertSchema(golfPools).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  slug: z.union([
+    z.string()
+      .max(100, "URL slug must be 100 characters or less")
+      .regex(/^[a-z0-9-]+$/, "URL slug can only contain lowercase letters, numbers, and hyphens"),
+    z.literal('').transform(() => undefined),
+    z.undefined()
+  ]),
+});
+
+export type InsertGolfPool = z.infer<typeof insertGolfPoolSchema>;
+export type GolfPool = typeof golfPools.$inferSelect;
+
+// Golf Pool Entries - Participants in a pool
+export const golfPoolEntries = pgTable("golf_pool_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => golfPools.id, { onDelete: "cascade" }),
+  participantId: varchar("participant_id").references(() => participants.id, { onDelete: "set null" }),
+  entryName: text("entry_name").notNull(), // Display name for this entry
+  email: text("email").notNull(),
+  status: golfEntryStatusEnum("status").notNull().default("active"),
+  eliminatedWeek: integer("eliminated_week"), // Week when eliminated
+  usedGolfers: jsonb("used_golfers").$type<string[]>().default(sql`'[]'::jsonb`), // List of golfer names already used
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("golf_pool_entries_pool_idx").on(table.poolId),
+  index("golf_pool_entries_email_idx").on(table.email),
+]);
+
+export const insertGolfPoolEntrySchema = createInsertSchema(golfPoolEntries).omit({
+  id: true,
+  createdAt: true,
+  eliminatedWeek: true,
+  usedGolfers: true,
+});
+
+export type InsertGolfPoolEntry = z.infer<typeof insertGolfPoolEntrySchema>;
+export type GolfPoolEntry = typeof golfPoolEntries.$inferSelect;
+
+// Golf Picks - Weekly picks for each entry
+export const golfPicks = pgTable("golf_picks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entryId: varchar("entry_id").notNull().references(() => golfPoolEntries.id, { onDelete: "cascade" }),
+  poolId: varchar("pool_id").notNull().references(() => golfPools.id, { onDelete: "cascade" }),
+  tournamentId: varchar("tournament_id").notNull().references(() => golfTournaments.id, { onDelete: "cascade" }),
+  weekNumber: integer("week_number").notNull(),
+  golferName: text("golfer_name").notNull(), // Name of the golfer picked
+  isAutoPick: boolean("is_auto_pick").notNull().default(false), // True if system auto-picked
+  result: golfPickResultEnum("result").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("golf_picks_entry_idx").on(table.entryId),
+  index("golf_picks_pool_week_idx").on(table.poolId, table.weekNumber),
+  uniqueIndex("golf_picks_entry_week_unique").on(table.entryId, table.weekNumber),
+]);
+
+export const insertGolfPickSchema = createInsertSchema(golfPicks).omit({
+  id: true,
+  createdAt: true,
+  result: true,
+});
+
+export type InsertGolfPick = z.infer<typeof insertGolfPickSchema>;
+export type GolfPick = typeof golfPicks.$inferSelect;
