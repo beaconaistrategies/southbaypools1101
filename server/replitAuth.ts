@@ -163,6 +163,14 @@ export async function setupAuth(app: Express) {
     })(req, res, next);
   });
 
+  // Force account selection - allows signing in with a different account
+  app.get("/api/login/select-account", (req, res, next) => {
+    passport.authenticate("replitauth", {
+      prompt: "select_account consent",
+      scope: ["openid", "email", "profile", "offline_access"],
+    })(req, res, next);
+  });
+
   app.get("/api/callback", (req, res, next) => {
     passport.authenticate("replitauth", {
       successReturnToOrRedirect: "/",

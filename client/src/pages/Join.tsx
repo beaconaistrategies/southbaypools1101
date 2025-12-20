@@ -90,11 +90,16 @@ export default function Join() {
                   Sign in with your Google, GitHub, or email to get started.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <a href="/api/login" data-testid="button-sign-in">
                   <Button size="lg" className="w-full gap-2">
                     <LogIn className="h-5 w-5" />
                     Sign In to Get Started
+                  </Button>
+                </a>
+                <a href="/api/login/select-account" data-testid="button-sign-in-different">
+                  <Button variant="outline" size="sm" className="w-full">
+                    Use a Different Account
                   </Button>
                 </a>
               </CardContent>
@@ -120,10 +125,15 @@ export default function Join() {
           <Link href="/">
             <span className="text-xl font-bold cursor-pointer" data-testid="link-home">South Bay Pools</span>
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground" data-testid="text-user-email">
               {participant?.email}
             </span>
+            <a href="/api/login/select-account" data-testid="button-switch-account">
+              <Button variant="ghost" size="sm">
+                Switch Account
+              </Button>
+            </a>
             <a href="/api/logout" data-testid="button-logout">
               <Button variant="outline" size="sm" className="gap-2">
                 <LogOut className="h-4 w-4" />
