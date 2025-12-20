@@ -1,9 +1,25 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { Trophy, Users, Calendar, Target, Clock, Ban, Zap, Crown } from "lucide-react";
+import { Trophy, Users, Calendar, Target, Clock, Ban, Zap, Crown, DollarSign, ArrowRight } from "lucide-react";
+
+type PublicGolfPool = {
+  id: string;
+  name: string;
+  slug: string | null;
+  season: number;
+  entryFee: string | null;
+  entryCount: number;
+  currentWeek: number;
+};
 
 export default function GolfSurvivor() {
+  const { data: pools = [], isLoading: poolsLoading } = useQuery<PublicGolfPool[]>({
+    queryKey: ["/api/public/golf/pools"],
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -36,12 +52,21 @@ export default function GolfSurvivor() {
               Use each golfer only once. Last one standing wins!
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Link href="/join">
-                <Button size="lg" className="gap-2" data-testid="button-join-now">
-                  <Users className="h-5 w-5" />
-                  Join the Pool
-                </Button>
-              </Link>
+              {pools.length > 0 ? (
+                <Link href={`/golf/pool/${pools[0].id}/signup`}>
+                  <Button size="lg" className="gap-2" data-testid="button-join-now">
+                    <Users className="h-5 w-5" />
+                    Join the Pool
+                  </Button>
+                </Link>
+              ) : (
+                <a href="#pools">
+                  <Button size="lg" className="gap-2" data-testid="button-join-now">
+                    <Users className="h-5 w-5" />
+                    View Available Pools
+                  </Button>
+                </a>
+              )}
               <a href="#how-it-works">
                 <Button size="lg" variant="outline" className="gap-2" data-testid="button-learn-more">
                   Learn How It Works
@@ -51,7 +76,69 @@ export default function GolfSurvivor() {
           </div>
         </section>
 
-        <section id="how-it-works" className="py-16 bg-muted/50">
+        <section id="pools" className="py-16 bg-muted/50">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold mb-4">Available Pools</h2>
+              <p className="text-muted-foreground max-w-xl mx-auto">
+                Join one of our active Golf Survivor pools and start competing!
+              </p>
+            </div>
+            
+            {poolsLoading ? (
+              <div className="text-center text-muted-foreground">Loading pools...</div>
+            ) : pools.length === 0 ? (
+              <Card className="max-w-md mx-auto text-center">
+                <CardContent className="py-12">
+                  <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Active Pools</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Check back soon! New pools will be announced before the start of the PGA Tour season.
+                  </p>
+                  <Link href="/join">
+                    <Button variant="outline">Sign in for Updates</Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 max-w-4xl mx-auto">
+                {pools.map((pool) => (
+                  <Card key={pool.id} className="hover-elevate" data-testid={`card-pool-${pool.id}`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <CardTitle className="text-xl">{pool.name}</CardTitle>
+                          <CardDescription>{pool.season} Season</CardDescription>
+                        </div>
+                        <Badge variant="secondary">Week {pool.currentWeek}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{pool.entryCount} entries</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">{pool.entryFee ? `$${pool.entryFee}` : "Free"}</span>
+                        </div>
+                      </div>
+                      <Link href={`/golf/pool/${pool.id}/signup`}>
+                        <Button className="w-full gap-2" data-testid={`button-join-pool-${pool.id}`}>
+                          Join Pool
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section id="how-it-works" className="py-16">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">How It Works</h2>

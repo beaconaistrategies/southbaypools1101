@@ -28,6 +28,19 @@ type ParticipantContest = {
   squares: { index: number; entryName: string | null }[];
 };
 
+type GolfEntry = {
+  id: string;
+  poolId: string;
+  entryName: string;
+  email: string;
+  status: "active" | "eliminated";
+  eliminatedWeek: number | null;
+  poolName: string | null;
+  poolSlug: string | null;
+  poolSeason: number | null;
+  poolCurrentWeek: number | null;
+};
+
 function useParticipantAuth() {
   const { data: participant, isLoading, error } = useQuery<Participant>({
     queryKey: ["/api/participant/user"],
@@ -50,6 +63,11 @@ export default function Join() {
 
   const { data: contests = [], isLoading: contestsLoading } = useQuery<ParticipantContest[]>({
     queryKey: ["/api/participant/contests"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: golfEntries = [], isLoading: golfEntriesLoading } = useQuery<GolfEntry[]>({
+    queryKey: ["/api/participant/golf/entries"],
     enabled: isAuthenticated,
   });
 
@@ -242,9 +260,47 @@ export default function Join() {
           </Card>
         </div>
 
-        {contestsLoading ? (
+        {golfEntries.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Your Golf Survivor Entries</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {golfEntries.map((entry) => (
+                <Card key={entry.id} data-testid={`card-golf-entry-${entry.id}`}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-lg">{entry.entryName}</CardTitle>
+                        <CardDescription>{entry.poolName || "Golf Pool"}</CardDescription>
+                      </div>
+                      {entry.status === "active" ? (
+                        <Badge className="bg-green-600 text-white">Active</Badge>
+                      ) : (
+                        <Badge variant="destructive">Eliminated (Wk {entry.eliminatedWeek})</Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4 inline mr-1" />
+                        Week {entry.poolCurrentWeek || 1} of {entry.poolSeason}
+                      </div>
+                      <Link href={`/golf/pool/${entry.poolId}/entry/${entry.id}`}>
+                        <Button variant="outline" size="sm" data-testid={`button-view-golf-${entry.id}`}>
+                          {entry.status === "active" ? "Make Pick" : "View History"}
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {contestsLoading || golfEntriesLoading ? (
           <p className="text-muted-foreground">Loading your contests...</p>
-        ) : contests.length === 0 ? (
+        ) : contests.length === 0 && golfEntries.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Grid3X3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -252,12 +308,17 @@ export default function Join() {
               <p className="text-muted-foreground mb-4">
                 You haven't joined any contests yet. Browse available contests to claim your squares!
               </p>
-              <Link href="/">
-                <Button data-testid="button-browse-empty">Browse Contests</Button>
-              </Link>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Link href="/">
+                  <Button data-testid="button-browse-empty">Browse Squares</Button>
+                </Link>
+                <Link href="/golfsurvivor">
+                  <Button variant="outline" data-testid="button-browse-golf">Join Golf Survivor</Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
-        ) : (
+        ) : contests.length > 0 && (
           <>
             {upcomingContests.length > 0 && (
               <div className="mb-8">

@@ -1261,6 +1261,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== PUBLIC GOLF SURVIVOR ROUTES ==========
+
+  // Get all public golf pools (open for signup)
+  app.get("/api/public/golf/pools", async (req, res) => {
+    try {
+      // Get all pools that are open for signup
+      const { operators } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      
+      // For now, get pools from the primary operator (south-bay-pools)
+      const primaryOperator = await storage.getOperatorBySlug("south-bay-pools");
+      if (!primaryOperator) {
+        return res.json([]);
+      }
+      
+      const pools = await storage.getAllGolfPools(primaryOperator.id);
+      
+      // Filter to open pools and add entry counts
+      const publicPools = await Promise.all(
+        pools
+          .filter(p => p.status === "active" || p.status === "upcoming")
+          .map(async (pool) => {
+            const entries = await storage.getGolfPoolEntries(pool.id);
+            return {
+              id: pool.id,
+              name: pool.name,
+              slug: pool.slug,
+              season: pool.season,
+              entryFee: pool.entryFee,
+              entryCount: entries.length,
+              currentWeek: pool.currentWeek,
+            };
+          })
+      );
+      
+      res.json(publicPools);
+    } catch (error) {
+      console.error("Error fetching public golf pools:", error);
+      res.status(500).json({ error: "Failed to fetch pools" });
+    }
+  });
+
+  // Get public golf pool details by slug or id
+  app.get("/api/public/golf/pools/:identifier", async (req, res) => {
+    try {
+      const { identifier } = req.params;
+      
+      // Try by ID first (UUID format)
+      let pool = await storage.getGolfPool(identifier);
+      
+      // If not found, try by slug
+      if (!pool) {
+        pool = await storage.getGolfPoolBySlug(identifier);
+      }
+      
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      res.json({
+        id: pool.id,
+        name: pool.name,
+        slug: pool.slug,
+        season: pool.season,
+        entryFee: pool.entryFee,
+        currentWeek: pool.currentWeek,
+        entryCount: entries.length,
+        status: pool.status,
+      });
+    } catch (error) {
+      console.error("Error fetching public golf pool:", error);
+      res.status(500).json({ error: "Failed to fetch pool" });
+    }
+  });
+
+  // Participant self-registration for golf pool (requires auth)
+  app.post("/api/participant/golf/pools/:poolId/signup", isAuthenticated, async (req: any, res) => {
+    try {
+      const { poolId } = req.params;
+      const { entryName } = req.body;
+      
+      // Validate entry name
+      if (!entryName || typeof entryName !== "string" || entryName.trim().length === 0) {
+        return res.status(400).json({ error: "Entry name is required" });
+      }
+      
+      if (entryName.trim().length > 100) {
+        return res.status(400).json({ error: "Entry name is too long (max 100 characters)" });
+      }
+      
+      // Get the pool
+      let pool;
+      try {
+        pool = await storage.getGolfPool(poolId);
+      } catch (err) {
+        console.error("Error fetching pool:", err);
+        return res.status(500).json({ error: "Unable to process request" });
+      }
+      
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      // Only allow signup for active or upcoming pools
+      if (pool.status !== "active" && pool.status !== "upcoming") {
+        return res.status(400).json({ error: "This pool is no longer accepting registrations" });
+      }
+      
+      // Get participant info
+      const authId = req.user.claims.sub;
+      const email = req.user.claims.email;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+      
+      // Check if this email already has an entry in this pool
+      let existingEntries;
+      try {
+        existingEntries = await storage.getGolfPoolEntries(poolId);
+      } catch (err) {
+        console.error("Error checking existing entries:", err);
+        return res.status(500).json({ error: "Unable to process request" });
+      }
+      
+      const hasExisting = existingEntries.some(e => e.email.toLowerCase() === email.toLowerCase());
+      if (hasExisting) {
+        return res.status(400).json({ error: "You already have an entry in this pool" });
+      }
+      
+      // Get or create participant
+      let participant;
+      try {
+        participant = await storage.getParticipantByAuthId(authId);
+        if (!participant) {
+          participant = await storage.upsertParticipant({
+            authId,
+            email,
+            firstName: req.user.claims.first_name,
+            lastName: req.user.claims.last_name,
+            profileImageUrl: req.user.claims.profile_image_url,
+          });
+        }
+      } catch (err) {
+        console.error("Error managing participant:", err);
+        return res.status(500).json({ error: "Unable to process request" });
+      }
+      
+      // Create the entry
+      let entry;
+      try {
+        entry = await storage.createGolfPoolEntry({
+          poolId,
+          entryName: entryName.trim(),
+          email,
+          participantId: participant.id,
+          status: "active",
+        });
+      } catch (err) {
+        console.error("Error creating entry:", err);
+        return res.status(500).json({ error: "Unable to create entry" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      console.error("Error in golf pool signup:", error);
+      res.status(500).json({ error: "An unexpected error occurred" });
+    }
+  });
+
+  // Get participant's golf entries
+  app.get("/api/participant/golf/entries", isAuthenticated, async (req: any, res) => {
+    try {
+      const email = req.user.claims.email;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email not found" });
+      }
+      
+      const entries = await storage.getGolfPoolEntriesByEmail(email);
+      
+      // Add pool info to each entry
+      const entriesWithPool = await Promise.all(
+        entries.map(async (entry) => {
+          const pool = await storage.getGolfPool(entry.poolId);
+          return {
+            ...entry,
+            poolName: pool?.name,
+            poolSlug: pool?.slug,
+            poolSeason: pool?.season,
+            poolCurrentWeek: pool?.currentWeek,
+          };
+        })
+      );
+      
+      res.json(entriesWithPool);
+    } catch (error) {
+      console.error("Error fetching participant golf entries:", error);
+      res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
