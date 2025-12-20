@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
-import { Grid3X3, Calendar, Users, LogIn, LogOut, LayoutDashboard } from "lucide-react";
+import { Grid3X3, Calendar, Users, LogIn, LogOut, LayoutDashboard, Trophy, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -86,14 +86,75 @@ export default function Hub() {
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Join our football squares and survivor pools. Pick your squares, track your entries, and compete for prizes!
           </p>
-          <div className="mt-6 flex justify-center gap-4">
+          <div className="mt-6 flex flex-wrap justify-center gap-4">
             <Link href="/join">
               <Button size="lg" className="gap-2" data-testid="button-get-started">
                 <Users className="h-5 w-5" />
                 Get Started
               </Button>
             </Link>
+            <Link href="/golfsurvivor">
+              <Button size="lg" variant="outline" className="gap-2" data-testid="button-golf-survivor">
+                <Trophy className="h-5 w-5" />
+                Golf Survivor
+              </Button>
+            </Link>
           </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto mb-12">
+          <a 
+            href="#contests" 
+            className="block"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("contests")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            <Card className="hover-elevate cursor-pointer" data-testid="card-squares-type">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Grid3X3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Football Squares</CardTitle>
+                    <CardDescription>10x10 grid pools for game days</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {contests.length} active contest{contests.length !== 1 ? "s" : ""}
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+          </a>
+
+          <Card className="hover-elevate cursor-pointer" data-testid="card-golf-type">
+            <Link href="/golfsurvivor">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Golf Survivor</CardTitle>
+                    <CardDescription>Pick golfers, make the cut, survive</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Season 2025</span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
         </div>
 
         {isLoading ? (
@@ -113,7 +174,7 @@ export default function Hub() {
         ) : (
           <>
             {fillingUp.length > 0 && (
-              <div className="mb-8">
+              <div id="contests" className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
                   <h2 className="text-2xl font-semibold">Filling Up Fast</h2>
                   <Badge variant="destructive">Limited spots!</Badge>
@@ -127,7 +188,7 @@ export default function Hub() {
             )}
 
             {openContests.length > 0 && (
-              <div className="mb-8">
+              <div id={fillingUp.length === 0 ? "contests" : undefined} className="mb-8">
                 <h2 className="text-2xl font-semibold mb-4">Open Contests</h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {openContests.map((contest) => (

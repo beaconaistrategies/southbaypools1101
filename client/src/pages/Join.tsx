@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
-import { LogIn, Grid3X3, Calendar, Trophy, LogOut, User } from "lucide-react";
+import { LogIn, Grid3X3, Calendar, Trophy, LogOut, User, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -183,6 +183,52 @@ export default function Join() {
                 </Button>
               </Link>
             </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 mb-8">
+          <Card className="hover-elevate cursor-pointer" data-testid="card-quick-squares">
+            <Link href="/">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Grid3X3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Football Squares</CardTitle>
+                    <CardDescription>Pick squares on the 10x10 grid</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">View open contests</span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover-elevate cursor-pointer" data-testid="card-quick-golf">
+            <Link href="/golfsurvivor">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <Trophy className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Golf Survivor</CardTitle>
+                    <CardDescription>Pick one golfer each week to survive</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Learn more & join</span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Link>
           </Card>
         </div>
 

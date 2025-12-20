@@ -15,6 +15,7 @@ import PublicBoard from "@/pages/PublicBoard";
 import MyContests from "@/pages/MyContests";
 import Hub from "@/pages/Hub";
 import Join from "@/pages/Join";
+import GolfSurvivor from "@/pages/golf-survivor";
 import NotFound from "@/pages/not-found";
 
 function LoginRedirect() {
@@ -60,6 +61,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Hub} />
       <Route path="/join" component={Join} />
+      <Route path="/golfsurvivor" component={GolfSurvivor} />
       <Route path="/login" component={LoginRedirect} />
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} />}
