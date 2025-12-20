@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema } from "@shared/schema";
+import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
@@ -945,6 +945,318 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error exporting contest to CSV:", error);
       res.status(500).json({ error: "Failed to export contest" });
+    }
+  });
+
+  // ==========================================
+  // GOLF SURVIVOR ROUTES
+  // ==========================================
+
+  // Golf Tournament routes (admin only for management, public for viewing)
+  app.get("/api/golf/tournaments", async (req, res) => {
+    try {
+      const season = req.query.season ? parseInt(req.query.season as string) : undefined;
+      const tournaments = await storage.getAllGolfTournaments(season);
+      return res.json(tournaments);
+    } catch (error) {
+      console.error("Error fetching golf tournaments:", error);
+      return res.status(500).json({ error: "Failed to fetch tournaments" });
+    }
+  });
+
+  app.get("/api/golf/tournaments/:id", async (req, res) => {
+    try {
+      const tournament = await storage.getGolfTournament(req.params.id);
+      if (!tournament) {
+        return res.status(404).json({ error: "Tournament not found" });
+      }
+      return res.json(tournament);
+    } catch (error) {
+      console.error("Error fetching tournament:", error);
+      return res.status(500).json({ error: "Failed to fetch tournament" });
+    }
+  });
+
+  app.post("/api/golf/tournaments", isAdmin, async (req, res) => {
+    try {
+      const validation = insertGolfTournamentSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      const tournament = await storage.createGolfTournament(validation.data);
+      return res.json(tournament);
+    } catch (error) {
+      console.error("Error creating tournament:", error);
+      return res.status(500).json({ error: "Failed to create tournament" });
+    }
+  });
+
+  // Bulk import tournaments (admin only)
+  app.post("/api/golf/tournaments/bulk", isAdmin, async (req, res) => {
+    try {
+      const tournaments = req.body.tournaments as Array<{
+        name: string;
+        startDate: string;
+        endDate: string;
+        season: number;
+        weekNumber?: number;
+      }>;
+      
+      if (!Array.isArray(tournaments)) {
+        return res.status(400).json({ error: "tournaments must be an array" });
+      }
+      
+      const created = [];
+      for (const t of tournaments) {
+        const tournament = await storage.createGolfTournament({
+          name: t.name,
+          startDate: new Date(t.startDate),
+          endDate: new Date(t.endDate),
+          season: t.season,
+          weekNumber: t.weekNumber,
+        });
+        created.push(tournament);
+      }
+      
+      return res.json({ created: created.length, tournaments: created });
+    } catch (error) {
+      console.error("Error bulk importing tournaments:", error);
+      return res.status(500).json({ error: "Failed to import tournaments" });
+    }
+  });
+
+  app.patch("/api/golf/tournaments/:id", isAdmin, async (req, res) => {
+    try {
+      const tournament = await storage.updateGolfTournament(req.params.id, req.body);
+      if (!tournament) {
+        return res.status(404).json({ error: "Tournament not found" });
+      }
+      return res.json(tournament);
+    } catch (error) {
+      console.error("Error updating tournament:", error);
+      return res.status(500).json({ error: "Failed to update tournament" });
+    }
+  });
+
+  app.delete("/api/golf/tournaments/:id", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteGolfTournament(req.params.id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting tournament:", error);
+      return res.status(500).json({ error: "Failed to delete tournament" });
+    }
+  });
+
+  // Golf Pool routes (admin for management)
+  app.get("/api/golf/pools", isAdmin, async (req, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      const pools = await storage.getAllGolfPools(operatorId);
+      return res.json(pools);
+    } catch (error) {
+      console.error("Error fetching golf pools:", error);
+      return res.status(500).json({ error: "Failed to fetch pools" });
+    }
+  });
+
+  app.get("/api/golf/pools/:id", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.id);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      return res.json(pool);
+    } catch (error) {
+      console.error("Error fetching pool:", error);
+      return res.status(500).json({ error: "Failed to fetch pool" });
+    }
+  });
+
+  app.post("/api/golf/pools", isAdmin, async (req, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      const validation = insertGolfPoolSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const pool = await storage.createGolfPool({ ...validation.data, operatorId });
+      return res.json(pool);
+    } catch (error) {
+      console.error("Error creating pool:", error);
+      return res.status(500).json({ error: "Failed to create pool" });
+    }
+  });
+
+  app.patch("/api/golf/pools/:id", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.updateGolfPool(req.params.id, req.body);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      return res.json(pool);
+    } catch (error) {
+      console.error("Error updating pool:", error);
+      return res.status(500).json({ error: "Failed to update pool" });
+    }
+  });
+
+  app.delete("/api/golf/pools/:id", isAdmin, async (req, res) => {
+    try {
+      await storage.deleteGolfPool(req.params.id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting pool:", error);
+      return res.status(500).json({ error: "Failed to delete pool" });
+    }
+  });
+
+  // Golf Pool Entry routes
+  app.get("/api/golf/pools/:poolId/entries", async (req, res) => {
+    try {
+      const entries = await storage.getGolfPoolEntries(req.params.poolId);
+      return res.json(entries);
+    } catch (error) {
+      console.error("Error fetching pool entries:", error);
+      return res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
+  app.post("/api/golf/pools/:poolId/entries", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const validation = insertGolfPoolEntrySchema.safeParse({
+        ...req.body,
+        poolId: req.params.poolId,
+      });
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const entry = await storage.createGolfPoolEntry(validation.data);
+      return res.json(entry);
+    } catch (error) {
+      console.error("Error creating pool entry:", error);
+      return res.status(500).json({ error: "Failed to create entry" });
+    }
+  });
+
+  app.patch("/api/golf/entries/:id", async (req, res) => {
+    try {
+      const entry = await storage.updateGolfPoolEntry(req.params.id, req.body);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      return res.json(entry);
+    } catch (error) {
+      console.error("Error updating entry:", error);
+      return res.status(500).json({ error: "Failed to update entry" });
+    }
+  });
+
+  // Golf Pick routes
+  app.get("/api/golf/entries/:entryId/picks", async (req, res) => {
+    try {
+      const picks = await storage.getGolfPicks(req.params.entryId);
+      return res.json(picks);
+    } catch (error) {
+      console.error("Error fetching picks:", error);
+      return res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
+  app.get("/api/golf/pools/:poolId/picks/:weekNumber", async (req, res) => {
+    try {
+      const weekNumber = parseInt(req.params.weekNumber);
+      const picks = await storage.getGolfPicksForWeek(req.params.poolId, weekNumber);
+      return res.json(picks);
+    } catch (error) {
+      console.error("Error fetching picks for week:", error);
+      return res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
+  app.post("/api/golf/entries/:entryId/picks", async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      // Check if entry is still active
+      if (entry.status === "eliminated") {
+        return res.status(400).json({ error: "Entry has been eliminated" });
+      }
+      
+      // Check if golfer was already used
+      const usedGolfers = entry.usedGolfers || [];
+      if (usedGolfers.includes(req.body.golferName)) {
+        return res.status(400).json({ error: "This golfer has already been used" });
+      }
+      
+      const pool = await storage.getGolfPool(entry.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const validation = insertGolfPickSchema.safeParse({
+        ...req.body,
+        entryId: req.params.entryId,
+        poolId: entry.poolId,
+      });
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const pick = await storage.createGolfPick(validation.data);
+      
+      // Update used golfers list
+      await storage.updateGolfPoolEntry(entry.id, {
+        usedGolfers: [...usedGolfers, req.body.golferName],
+      });
+      
+      return res.json(pick);
+    } catch (error) {
+      console.error("Error creating pick:", error);
+      return res.status(500).json({ error: "Failed to create pick" });
+    }
+  });
+
+  // Admin: Update pick result
+  app.patch("/api/golf/picks/:id", isAdmin, async (req, res) => {
+    try {
+      const pick = await storage.updateGolfPick(req.params.id, req.body);
+      if (!pick) {
+        return res.status(404).json({ error: "Pick not found" });
+      }
+      
+      // If pick result is eliminated, update the entry status
+      if (req.body.result === "eliminated") {
+        const entry = await storage.getGolfPoolEntry(pick.entryId);
+        if (entry) {
+          await storage.updateGolfPoolEntry(entry.id, {
+            status: "eliminated",
+            eliminatedWeek: pick.weekNumber,
+          });
+        }
+      }
+      
+      return res.json(pick);
+    } catch (error) {
+      console.error("Error updating pick:", error);
+      return res.status(500).json({ error: "Failed to update pick" });
     }
   });
 
