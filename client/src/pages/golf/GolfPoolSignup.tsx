@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn } from "lucide-react";
+import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn, Mail } from "lucide-react";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 type GolfPoolPublic = {
@@ -46,6 +47,7 @@ export default function GolfPoolSignup() {
   const { toast } = useToast();
   const { participant, isLoading: authLoading, isAuthenticated } = useParticipantAuth();
   const [entryName, setEntryName] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   const { data: pool, isLoading: poolLoading, error: poolError } = useQuery<GolfPoolPublic>({
     queryKey: ["/api/public/golf/pools", poolId],
@@ -155,19 +157,34 @@ export default function GolfPoolSignup() {
                 <p className="text-sm text-muted-foreground">This pool is no longer accepting new entries.</p>
               </div>
             ) : !isAuthenticated ? (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground mb-4">Sign in to join this pool</p>
-                <a href="/api/login" data-testid="button-sign-in">
+              <div className="text-center py-4 space-y-3">
+                <p className="text-muted-foreground">Sign in with Google, GitHub, Apple, or any email to join</p>
+                <div className="flex items-center gap-2 justify-center">
+                  <Checkbox
+                    id="remember-me-golf"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    data-testid="checkbox-remember-me"
+                  />
+                  <Label htmlFor="remember-me-golf" className="text-sm cursor-pointer">
+                    Stay signed in for 30 days
+                  </Label>
+                </div>
+                <a href={rememberMe ? "/api/login?remember=true" : "/api/login"} data-testid="button-sign-in">
                   <Button size="lg" className="w-full gap-2">
                     <LogIn className="h-5 w-5" />
                     Sign In to Join
                   </Button>
                 </a>
-                <a href="/api/login/select-account" className="block mt-2">
+                <a href={rememberMe ? "/api/login/select-account?remember=true" : "/api/login/select-account"} className="block">
                   <Button variant="ghost" size="sm" className="w-full">
                     Use a Different Account
                   </Button>
                 </a>
+                <p className="text-xs text-muted-foreground pt-2 border-t">
+                  <Mail className="h-3 w-3 inline mr-1" />
+                  Non-Google emails get a magic link - no password needed!
+                </p>
               </div>
             ) : (
               <form onSubmit={handleSignup} className="space-y-4">

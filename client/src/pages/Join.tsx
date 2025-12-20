@@ -1,12 +1,63 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Link } from "wouter";
-import { LogIn, Grid3X3, Calendar, Trophy, LogOut, User, ArrowRight } from "lucide-react";
+import { LogIn, Grid3X3, Calendar, Trophy, LogOut, User, ArrowRight, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { isUnauthorizedError } from "@/lib/authUtils";
+
+function LoginCard() {
+  const [rememberMe, setRememberMe] = useState(true);
+  
+  const loginUrl = rememberMe ? "/api/login?remember=true" : "/api/login";
+  const selectAccountUrl = rememberMe ? "/api/login/select-account?remember=true" : "/api/login/select-account";
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create Your Account</CardTitle>
+        <CardDescription>
+          Sign in with Google, GitHub, Apple, or any email address.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-2 justify-center">
+          <Checkbox
+            id="remember-me"
+            checked={rememberMe}
+            onCheckedChange={(checked) => setRememberMe(checked === true)}
+            data-testid="checkbox-remember-me"
+          />
+          <Label htmlFor="remember-me" className="text-sm cursor-pointer">
+            Stay signed in for 30 days
+          </Label>
+        </div>
+        <a href={loginUrl} data-testid="button-sign-in">
+          <Button size="lg" className="w-full gap-2">
+            <LogIn className="h-5 w-5" />
+            Sign In to Get Started
+          </Button>
+        </a>
+        <a href={selectAccountUrl} data-testid="button-sign-in-different">
+          <Button variant="outline" size="sm" className="w-full">
+            Use a Different Account
+          </Button>
+        </a>
+        <div className="pt-2 border-t">
+          <p className="text-sm text-muted-foreground text-center">
+            <Mail className="h-4 w-4 inline mr-1" />
+            Using a non-Google email? No password needed - we'll send you a magic link!
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 type Participant = {
   id: string;
@@ -101,27 +152,7 @@ export default function Join() {
               </p>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Your Account</CardTitle>
-                <CardDescription>
-                  Sign in with your Google, GitHub, or email to get started.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <a href="/api/login" data-testid="button-sign-in">
-                  <Button size="lg" className="w-full gap-2">
-                    <LogIn className="h-5 w-5" />
-                    Sign In to Get Started
-                  </Button>
-                </a>
-                <a href="/api/login/select-account" data-testid="button-sign-in-different">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Use a Different Account
-                  </Button>
-                </a>
-              </CardContent>
-            </Card>
+            <LoginCard />
 
             <div className="mt-8 text-sm text-muted-foreground">
               <p>Already claimed squares? Sign in with the same email to see them all in one place.</p>

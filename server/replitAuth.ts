@@ -18,13 +18,16 @@ const getOidcConfig = memoize(
   { maxAge: 3600 * 1000 }
 );
 
+// Session durations
+const SESSION_TTL_DEFAULT = 7 * 24 * 60 * 60 * 1000; // 1 week
+const SESSION_TTL_REMEMBER = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 export function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
-    ttl: sessionTtl,
+    ttl: SESSION_TTL_REMEMBER, // Use max TTL for store, cookie controls actual expiry
     tableName: "sessions",
   });
   return session({
@@ -35,7 +38,7 @@ export function getSession() {
     cookie: {
       httpOnly: true,
       secure: true,
-      maxAge: sessionTtl,
+      maxAge: SESSION_TTL_DEFAULT,
     },
   });
 }
@@ -157,6 +160,10 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
+    // Store remember preference in session before redirecting
+    const remember = req.query.remember === "true";
+    (req.session as any).rememberMe = remember;
+    
     passport.authenticate("replitauth", {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -165,6 +172,10 @@ export async function setupAuth(app: Express) {
 
   // Force account selection - allows signing in with a different account
   app.get("/api/login/select-account", (req, res, next) => {
+    // Store remember preference in session before redirecting
+    const remember = req.query.remember === "true";
+    (req.session as any).rememberMe = remember;
+    
     passport.authenticate("replitauth", {
       prompt: "select_account consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -172,9 +183,32 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate("replitauth", {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    passport.authenticate("replitauth", (err: any, user: any, info: any) => {
+      if (err || !user) {
+        // Clear rememberMe on error
+        delete (req.session as any).rememberMe;
+        return res.redirect("/api/login");
+      }
+      
+      req.logIn(user, (loginErr: any) => {
+        if (loginErr) {
+          // Clear rememberMe on error
+          delete (req.session as any).rememberMe;
+          return res.redirect("/api/login");
+        }
+        
+        // Check if user opted for "Stay Signed In"
+        const rememberMe = (req.session as any).rememberMe;
+        if (rememberMe && req.session.cookie) {
+          req.session.cookie.maxAge = SESSION_TTL_REMEMBER;
+        }
+        
+        // Clear session flag
+        delete (req.session as any).rememberMe;
+        
+        // Always redirect to home - safe and consistent
+        res.redirect("/");
+      });
     })(req, res, next);
   });
 
