@@ -20,7 +20,7 @@ Preferred communication style: Simple, everyday language.
 
 **Routing:** wouter for client-side routing.
 
-**Key Pages:** Login, Admin Dashboard, New/Edit Contest, Contest Manager, Public Board, Hub (landing page), Join (participant portal).
+**Key Pages:** Login, Admin Dashboard, New/Edit Contest, Contest Manager, Public Board, Hub (landing page), Join (participant portal), Golf Survivor landing page.
 
 ### Backend Architecture
 
