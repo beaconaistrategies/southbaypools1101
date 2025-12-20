@@ -1069,7 +1069,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!pool) {
         return res.status(404).json({ error: "Pool not found" });
       }
-      return res.json(pool);
+      const entries = await storage.getGolfPoolEntries(req.params.id);
+      return res.json({ ...pool, entries });
     } catch (error) {
       console.error("Error fetching pool:", error);
       return res.status(500).json({ error: "Failed to fetch pool" });
@@ -1130,7 +1131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/golf/pools/:poolId/entries", async (req, res) => {
+  app.post("/api/golf/pools/:poolId/entries", isAdmin, async (req, res) => {
     try {
       const pool = await storage.getGolfPool(req.params.poolId);
       if (!pool) {
@@ -1153,7 +1154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/golf/entries/:id", async (req, res) => {
+  app.patch("/api/golf/entries/:id", isAdmin, async (req, res) => {
     try {
       const entry = await storage.updateGolfPoolEntry(req.params.id, req.body);
       if (!entry) {
