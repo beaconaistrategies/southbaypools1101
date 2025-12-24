@@ -151,7 +151,7 @@ export default function GolfPoolSignup() {
               </div>
             </div>
 
-            {pool.status !== "open" ? (
+            {pool.status === "completed" ? (
               <div className="text-center py-4">
                 <Badge variant="secondary" className="mb-2">Registration Closed</Badge>
                 <p className="text-sm text-muted-foreground">This pool is no longer accepting new entries.</p>
