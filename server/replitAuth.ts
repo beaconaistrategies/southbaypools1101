@@ -159,41 +159,75 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
+  // Sanitize returnTo URL to prevent open redirect attacks
+  function sanitizeReturnTo(url: string | undefined): string {
+    if (!url) return "/";
+    // Only allow paths starting with "/" (same-origin) but not "//" (protocol-relative)
+    if (url.startsWith("/") && !url.startsWith("//")) {
+      try {
+        // Parse and extract just the pathname to prevent encoded attacks
+        const parsed = new URL(url, "http://localhost");
+        return parsed.pathname + parsed.search;
+      } catch {
+        return "/";
+      }
+    }
+    return "/";
+  }
+
   app.get("/api/login", (req, res, next) => {
-    // Store remember preference in session before redirecting
+    // Store remember preference and return URL in session before redirecting
     const remember = req.query.remember === "true";
+    const returnTo = sanitizeReturnTo(req.query.returnTo as string);
     (req.session as any).rememberMe = remember;
+    (req.session as any).returnTo = returnTo;
     
-    passport.authenticate("replitauth", {
-      prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+    // Save session before OAuth redirect to ensure it persists
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+      }
+      passport.authenticate("replitauth", {
+        prompt: "login consent",
+        scope: ["openid", "email", "profile", "offline_access"],
+      })(req, res, next);
+    });
   });
 
   // Force account selection - allows signing in with a different account
   app.get("/api/login/select-account", (req, res, next) => {
-    // Store remember preference in session before redirecting
+    // Store remember preference and return URL in session before redirecting
     const remember = req.query.remember === "true";
+    const returnTo = sanitizeReturnTo(req.query.returnTo as string);
     (req.session as any).rememberMe = remember;
+    (req.session as any).returnTo = returnTo;
     
-    passport.authenticate("replitauth", {
-      prompt: "select_account consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+    // Save session before OAuth redirect to ensure it persists
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+      }
+      passport.authenticate("replitauth", {
+        prompt: "select_account consent",
+        scope: ["openid", "email", "profile", "offline_access"],
+      })(req, res, next);
+    });
   });
 
   app.get("/api/callback", (req, res, next) => {
     passport.authenticate("replitauth", (err: any, user: any, info: any) => {
       if (err || !user) {
-        // Clear rememberMe on error
+        // Clear session flags on error
         delete (req.session as any).rememberMe;
+        delete (req.session as any).returnTo;
         return res.redirect("/api/login");
       }
       
       req.logIn(user, (loginErr: any) => {
         if (loginErr) {
-          // Clear rememberMe on error
+          // Clear session flags on error
           delete (req.session as any).rememberMe;
+          delete (req.session as any).returnTo;
           return res.redirect("/api/login");
         }
         
@@ -203,11 +237,15 @@ export async function setupAuth(app: Express) {
           req.session.cookie.maxAge = SESSION_TTL_REMEMBER;
         }
         
-        // Clear session flag
-        delete (req.session as any).rememberMe;
+        // Get the return URL before clearing flags
+        const returnTo = (req.session as any).returnTo || "/";
         
-        // Always redirect to home - safe and consistent
-        res.redirect("/");
+        // Clear session flags
+        delete (req.session as any).rememberMe;
+        delete (req.session as any).returnTo;
+        
+        // Redirect to the stored returnTo path
+        res.redirect(returnTo);
       });
     })(req, res, next);
   });
