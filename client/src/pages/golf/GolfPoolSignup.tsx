@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn, Mail } from "lucide-react";
+import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn, Mail, LogOut, Info } from "lucide-react";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 type GolfPoolPublic = {
@@ -104,12 +104,22 @@ export default function GolfPoolSignup() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
           <Link href="/">
             <span className="text-xl font-bold cursor-pointer" data-testid="link-home">South Bay Pools</span>
           </Link>
           {isAuthenticated && (
-            <span className="text-sm text-muted-foreground">{participant?.email}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground" data-testid="text-user-email">
+                Signed in as {participant?.email}
+              </span>
+              <a href="/api/logout" data-testid="button-sign-out">
+                <Button variant="ghost" size="sm" className="gap-1">
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </Button>
+              </a>
+            </div>
           )}
         </div>
       </header>
@@ -170,21 +180,29 @@ export default function GolfPoolSignup() {
                     Stay signed in for 30 days
                   </Label>
                 </div>
-                <a href={rememberMe ? "/api/login?remember=true" : "/api/login"} data-testid="button-sign-in">
+                <a href={`/api/login?remember=${rememberMe}&returnTo=${encodeURIComponent(window.location.pathname)}`} data-testid="button-sign-in">
                   <Button size="lg" className="w-full gap-2">
                     <LogIn className="h-5 w-5" />
                     Sign In to Join
                   </Button>
                 </a>
-                <a href={rememberMe ? "/api/login/select-account?remember=true" : "/api/login/select-account"} className="block">
+                <a href={`/api/login/select-account?remember=${rememberMe}&returnTo=${encodeURIComponent(window.location.pathname)}`} className="block">
                   <Button variant="ghost" size="sm" className="w-full">
                     Use a Different Account
                   </Button>
                 </a>
-                <p className="text-xs text-muted-foreground pt-2 border-t">
-                  <Mail className="h-3 w-3 inline mr-1" />
-                  Non-Google emails get a magic link - no password needed!
-                </p>
+                <div className="text-xs text-muted-foreground pt-3 border-t space-y-2">
+                  <p>
+                    <Mail className="h-3 w-3 inline mr-1" />
+                    Non-Google emails get a magic link - no password needed!
+                  </p>
+                  <div className="flex items-start gap-2 bg-muted/50 rounded-md p-2">
+                    <Info className="h-3 w-3 mt-0.5 shrink-0 text-blue-500" />
+                    <p className="text-left">
+                      Look for a confirmation email from <strong>Replit</strong> (not South Bay Pools) in your inbox.
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSignup} className="space-y-4">
