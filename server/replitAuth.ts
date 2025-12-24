@@ -215,34 +215,24 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
+    // Capture session values BEFORE authentication (req.logIn regenerates the session)
+    const rememberMe = (req.session as any).rememberMe;
+    const returnTo = (req.session as any).returnTo || "/";
+    
     passport.authenticate("replitauth", (err: any, user: any, info: any) => {
       if (err || !user) {
-        // Clear session flags on error
-        delete (req.session as any).rememberMe;
-        delete (req.session as any).returnTo;
         return res.redirect("/api/login");
       }
       
       req.logIn(user, (loginErr: any) => {
         if (loginErr) {
-          // Clear session flags on error
-          delete (req.session as any).rememberMe;
-          delete (req.session as any).returnTo;
           return res.redirect("/api/login");
         }
         
-        // Check if user opted for "Stay Signed In"
-        const rememberMe = (req.session as any).rememberMe;
+        // Apply "Stay Signed In" to the new session
         if (rememberMe && req.session.cookie) {
           req.session.cookie.maxAge = SESSION_TTL_REMEMBER;
         }
-        
-        // Get the return URL before clearing flags
-        const returnTo = (req.session as any).returnTo || "/";
-        
-        // Clear session flags
-        delete (req.session as any).rememberMe;
-        delete (req.session as any).returnTo;
         
         // Redirect to the stored returnTo path
         res.redirect(returnTo);
