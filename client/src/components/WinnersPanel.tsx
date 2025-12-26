@@ -177,6 +177,7 @@ export default function WinnersPanel({
         {prizes.map((prize, index) => {
           const squareNumber = getSquareNumberForPrize(prize.label);
           const uniqueId = `winner-${index}-${prize.label.replace(/\s+/g, '-')}`;
+          const winnerName = getWinnerName(squareNumber);
           
           return (
             <div key={`prize-${index}`} className="space-y-2">
@@ -195,21 +196,31 @@ export default function WinnersPanel({
                   className="text-lg font-bold text-center py-2 bg-muted/50 rounded border"
                   data-testid={`text-winner-${index}`}
                 >
-                  {squareNumber > 0 ? (getWinnerName(squareNumber) || `#${squareNumber}`) : "—"}
+                  {squareNumber > 0 ? (winnerName || `#${squareNumber}`) : "—"}
                 </div>
               ) : (
-                <Input
-                  id={uniqueId}
-                  name={uniqueId}
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={squareNumber > 0 ? squareNumber : ""}
-                  onChange={(e) => handleSquareNumberChange(prize.label, e.target.value)}
-                  placeholder="Square #"
-                  className="text-center font-mono"
-                  data-testid={`input-winner-${index}`}
-                />
+                <div className="space-y-1">
+                  <Input
+                    id={uniqueId}
+                    name={uniqueId}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={squareNumber > 0 ? squareNumber : ""}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      handleSquareNumberChange(prize.label, val);
+                    }}
+                    placeholder="1-100"
+                    className="text-center font-mono"
+                    data-testid={`input-winner-${index}`}
+                  />
+                  {winnerName && (
+                    <div className="text-xs text-center text-muted-foreground truncate" title={winnerName}>
+                      {winnerName}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -288,13 +299,13 @@ export default function WinnersPanel({
                 const globalIndex = game.index * prizesPerGame + periodIndex;
                 const squareNumber = getSquareNumberForPrize(prize.label);
                 const uniqueId = `winner-${globalIndex}-${prize.label.replace(/\s+/g, '-')}`;
-                const periodLabel = periodLabels[periodIndex] || prize.label;
+                const winnerName = getWinnerName(squareNumber);
                 
                 return (
                   <div key={`prize-${globalIndex}`} className="space-y-1">
                     <div className="flex items-center justify-between gap-1">
-                      <Label htmlFor={uniqueId} className="text-xs font-medium truncate">
-                        {periodLabel}
+                      <Label htmlFor={uniqueId} className="text-xs font-medium truncate" title={prize.label}>
+                        {prize.label}
                       </Label>
                       {prize.amount && (
                         <Badge variant="secondary" className="text-xs px-1.5 py-0">
@@ -306,23 +317,33 @@ export default function WinnersPanel({
                       <div 
                         className="text-sm font-bold text-center py-1.5 bg-muted/50 rounded border truncate px-1"
                         data-testid={`text-winner-${globalIndex}`}
-                        title={squareNumber > 0 ? `#${squareNumber}: ${getWinnerName(squareNumber) || 'Unknown'}` : undefined}
+                        title={squareNumber > 0 ? `#${squareNumber}: ${winnerName || 'Unknown'}` : undefined}
                       >
-                        {squareNumber > 0 ? (getWinnerName(squareNumber) || `#${squareNumber}`) : "—"}
+                        {squareNumber > 0 ? (winnerName || `#${squareNumber}`) : "—"}
                       </div>
                     ) : (
-                      <Input
-                        id={uniqueId}
-                        name={uniqueId}
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={squareNumber > 0 ? squareNumber : ""}
-                        onChange={(e) => handleSquareNumberChange(prize.label, e.target.value)}
-                        placeholder="#"
-                        className="text-center font-mono h-9"
-                        data-testid={`input-winner-${globalIndex}`}
-                      />
+                      <div className="space-y-1">
+                        <Input
+                          id={uniqueId}
+                          name={uniqueId}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={squareNumber > 0 ? squareNumber : ""}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^0-9]/g, '');
+                            handleSquareNumberChange(prize.label, val);
+                          }}
+                          placeholder="1-100"
+                          className="text-center font-mono h-9"
+                          data-testid={`input-winner-${globalIndex}`}
+                        />
+                        {winnerName && (
+                          <div className="text-xs text-center text-muted-foreground truncate" title={winnerName}>
+                            {winnerName}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
