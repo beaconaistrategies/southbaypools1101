@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import AdminDashboard from "@/pages/AdminDashboard";
 import NewContest from "@/pages/NewContest";
@@ -25,7 +25,10 @@ import NotFound from "@/pages/not-found";
 
 function LoginRedirect() {
   useEffect(() => {
-    window.location.href = '/api/login';
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get('returnTo');
+    const loginUrl = returnTo ? `/api/login?returnTo=${encodeURIComponent(returnTo)}` : '/api/login';
+    window.location.href = loginUrl;
   }, []);
   return <div className="flex items-center justify-center min-h-screen">
     <p className="text-muted-foreground">Redirecting to login...</p>
@@ -34,11 +37,18 @@ function LoginRedirect() {
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const currentPath = useRef(location);
+
+  useEffect(() => {
+    if (!location.startsWith('/login')) {
+      currentPath.current = location;
+    }
+  }, [location]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      setLocation('/login');
+      setLocation(`/login?returnTo=${encodeURIComponent(currentPath.current)}`);
     }
   }, [isLoading, isAuthenticated, setLocation]);
 

@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
+import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
@@ -756,6 +756,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting folder:", error);
       res.status(500).json({ error: "Failed to delete folder" });
+    }
+  });
+
+  // ========== SQUARE TEMPLATES ==========
+
+  // Get all templates (admin only)
+  app.get("/api/templates", isAdmin, async (req, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      const templates = await storage.getAllSquareTemplates(operatorId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  // Create a template (admin only)
+  app.post("/api/templates", isAdmin, async (req, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      const templateData = insertSquareTemplateSchema.parse(req.body);
+      const template = await storage.createSquareTemplate({ ...templateData, operatorId });
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error("Error creating template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  // Delete a template (admin only)
+  app.delete("/api/templates/:id", isAdmin, async (req, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) {
+        return res.status(403).json({ error: "No operator assigned" });
+      }
+      
+      // Verify template belongs to operator
+      const template = await storage.getSquareTemplate(req.params.id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      if (template.operatorId !== operatorId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      await storage.deleteSquareTemplate(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ error: "Failed to delete template" });
     }
   });
 

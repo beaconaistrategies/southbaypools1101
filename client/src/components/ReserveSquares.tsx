@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Save, FolderOpen } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { SquareTemplate, TemplateSquare } from "@shared/schema";
 
 export interface ReservedSquare {
   squareNumber: number;
@@ -32,13 +43,74 @@ export default function ReserveSquares({
   onReservationsChange,
   disabledSquares = [],
 }: ReserveSquaresProps) {
+  const { toast } = useToast();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState("");
   const [newReservation, setNewReservation] = useState({
     squareNumber: "",
     entryName: "",
     holderName: "",
     holderEmail: "",
   });
+
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<SquareTemplate[]>({
+    queryKey: ['/api/templates'],
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: async (data: { name: string; squares: TemplateSquare[] }) => {
+      const res = await apiRequest('POST', '/api/templates', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+      toast({ title: "Template saved", description: "Your reserved squares template has been saved." });
+      setShowSaveTemplateDialog(false);
+      setTemplateName("");
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save template", variant: "destructive" });
+    },
+  });
+
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/templates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+      toast({ title: "Template deleted" });
+    },
+  });
+
+  const handleSaveAsTemplate = () => {
+    if (!templateName.trim() || reservedSquares.length === 0) return;
+    
+    const templateSquares: TemplateSquare[] = reservedSquares.map(sq => ({
+      index: sq.squareNumber,
+      entryName: sq.entryName,
+      holderName: sq.holderName,
+      holderEmail: sq.holderEmail,
+    }));
+
+    saveTemplateMutation.mutate({ name: templateName.trim(), squares: templateSquares });
+  };
+
+  const handleLoadTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+
+    const loadedSquares: ReservedSquare[] = template.squares.map(sq => ({
+      squareNumber: sq.index,
+      entryName: sq.entryName,
+      holderName: sq.holderName,
+      holderEmail: sq.holderEmail,
+    }));
+
+    onReservationsChange(loadedSquares);
+    toast({ title: "Template loaded", description: `Loaded ${loadedSquares.length} reserved squares from "${template.name}"` });
+  };
 
   const addReservation = () => {
     const squareNum = parseInt(newReservation.squareNumber);
@@ -86,20 +158,49 @@ export default function ReserveSquares({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <Label className="text-sm font-medium">
           Reserved Squares ({reservedSquares.length})
         </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setShowAddDialog(true)}
-          data-testid="button-add-reservation"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Reserve Square
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {templates.length > 0 && (
+            <Select onValueChange={handleLoadTemplate}>
+              <SelectTrigger className="w-[160px]" data-testid="select-load-template">
+                <FolderOpen className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Load Template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map(template => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name} ({template.squares.length})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {reservedSquares.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSaveTemplateDialog(true)}
+              data-testid="button-save-template"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Template
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddDialog(true)}
+            data-testid="button-add-reservation"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Reserve Square
+          </Button>
+        </div>
       </div>
 
       {reservedSquares.length > 0 ? (
@@ -225,6 +326,50 @@ export default function ReserveSquares({
               data-testid="button-confirm-reservation"
             >
               Reserve Square
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save as Template</DialogTitle>
+            <DialogDescription>
+              Save these {reservedSquares.length} reserved squares as a reusable template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-name">Template Name</Label>
+              <Input
+                id="template-name"
+                placeholder="e.g., Regular Pool Members"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                data-testid="input-template-name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                setShowSaveTemplateDialog(false);
+                setTemplateName("");
+              }}
+              data-testid="button-cancel-save-template"
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleSaveAsTemplate}
+              disabled={!templateName.trim() || saveTemplateMutation.isPending}
+              data-testid="button-confirm-save-template"
+            >
+              {saveTemplateMutation.isPending ? "Saving..." : "Save Template"}
             </Button>
           </DialogFooter>
         </DialogContent>

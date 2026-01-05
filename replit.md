@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 
 **Database Layer:** Drizzle ORM for type-safe interactions with Neon serverless PostgreSQL via WebSocket. Uses a schema-first approach with Zod validation.
 
-**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Participants (master accounts with Replit Auth linking), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info, optional participantId link).
+**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Participants (master accounts with Replit Auth linking), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info, optional participantId link), SquareTemplates (reusable reserved square configurations).
 
 **Key Architectural Decisions:** Session-based authentication, real-time data consistency via query invalidation, separation of concerns using a storage layer abstraction, and multi-tenant operator isolation.
 
@@ -74,6 +74,7 @@ Preferred communication style: Simple, everyday language.
 - Dashboard filtering (status, search by name/teams) and sorting.
 - Copy public link functionality.
 - Print-friendly styles for grids.
+- **Square Templates:** Save reserved square configurations as reusable templates. Load templates when creating new contests to quickly populate pre-assigned squares with regular pool members.
 
 ## External Dependencies
 

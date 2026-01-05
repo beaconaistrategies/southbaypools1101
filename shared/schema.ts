@@ -324,3 +324,41 @@ export const insertGolfPickSchema = createInsertSchema(golfPicks).omit({
 
 export type InsertGolfPick = z.infer<typeof insertGolfPickSchema>;
 export type GolfPick = typeof golfPicks.$inferSelect;
+
+// ==========================================
+// SQUARE TEMPLATES SCHEMA
+// ==========================================
+
+// Reserved square entry for templates
+export type TemplateSquare = {
+  index: number;
+  entryName: string;
+  holderName: string;
+  holderEmail: string;
+};
+
+// Square Templates - reusable reserved square configurations
+export const squareTemplates = pgTable("square_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  squares: jsonb("squares").$type<TemplateSquare[]>().notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("square_templates_operator_idx").on(table.operatorId),
+]);
+
+export const insertSquareTemplateSchema = createInsertSchema(squareTemplates).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  squares: z.array(z.object({
+    index: z.number().min(1).max(100),
+    entryName: z.string(),
+    holderName: z.string(),
+    holderEmail: z.string().email(),
+  })),
+});
+
+export type InsertSquareTemplate = z.infer<typeof insertSquareTemplateSchema>;
+export type SquareTemplate = typeof squareTemplates.$inferSelect;

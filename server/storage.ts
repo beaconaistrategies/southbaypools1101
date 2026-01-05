@@ -1,4 +1,4 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type SquareTemplate, type InsertSquareTemplate, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, squareTemplates } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, asc, desc } from "drizzle-orm";
 
@@ -71,6 +71,12 @@ export interface IStorage {
   getGolfPicksForWeek(poolId: string, weekNumber: number): Promise<GolfPick[]>;
   createGolfPick(pick: InsertGolfPick): Promise<GolfPick>;
   updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined>;
+
+  // Square Template methods
+  getAllSquareTemplates(operatorId: string): Promise<SquareTemplate[]>;
+  getSquareTemplate(id: string): Promise<SquareTemplate | undefined>;
+  createSquareTemplate(template: InsertSquareTemplate): Promise<SquareTemplate>;
+  deleteSquareTemplate(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -390,6 +396,25 @@ export class DbStorage implements IStorage {
   async updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined> {
     const result = await db.update(golfPicks).set(pick).where(eq(golfPicks.id, id)).returning();
     return result[0];
+  }
+
+  // Square Template methods
+  async getAllSquareTemplates(operatorId: string): Promise<SquareTemplate[]> {
+    return await db.select().from(squareTemplates).where(eq(squareTemplates.operatorId, operatorId)).orderBy(asc(squareTemplates.name));
+  }
+
+  async getSquareTemplate(id: string): Promise<SquareTemplate | undefined> {
+    const result = await db.select().from(squareTemplates).where(eq(squareTemplates.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createSquareTemplate(template: InsertSquareTemplate): Promise<SquareTemplate> {
+    const result = await db.insert(squareTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async deleteSquareTemplate(id: string): Promise<void> {
+    await db.delete(squareTemplates).where(eq(squareTemplates.id, id));
   }
 }
 
