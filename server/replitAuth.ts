@@ -7,6 +7,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { hasRolePermission, type UserRole } from "@shared/schema";
 
 const getOidcConfig = memoize(
   async () => {
@@ -110,7 +111,8 @@ async function upsertUser(
       lastName: claims["last_name"],
       profileImageUrl: claims["profile_image_url"],
       operatorId: operator.id,
-      isAdmin: true, // All new users are admins of their own operator
+      role: "admin", // New users are admins of their own operator
+      isAdmin: true, // Deprecated: kept for backwards compatibility
     });
   }
 }
@@ -283,7 +285,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Admin-only authentication check
+// Admin-only authentication check (uses role field, with fallback to isAdmin)
 export const isAdmin: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
@@ -293,12 +295,112 @@ export const isAdmin: RequestHandler = async (req, res, next) => {
 
   try {
     const dbUser = await storage.getUser(user.claims.sub);
-    if (!dbUser || !dbUser.isAdmin) {
+    if (!dbUser) {
       return res.status(403).json({ message: "Forbidden - Admin access required" });
     }
+    // Check role (with isAdmin fallback for backwards compatibility)
+    const hasAccess = hasRolePermission(dbUser.role as UserRole, "admin") || dbUser.isAdmin;
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Forbidden - Admin access required" });
+    }
+    // Attach user to request for use in routes
+    (req as any).dbUser = dbUser;
     next();
   } catch (error) {
     console.error("Error checking admin status:", error);
     res.status(500).json({ message: "Internal server error" });
   }
+};
+
+// Super Admin check - platform-level access
+export const isSuperAdmin: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+
+  if (!req.isAuthenticated() || !user.claims?.sub) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const dbUser = await storage.getUser(user.claims.sub);
+    if (!dbUser || dbUser.role !== "super_admin") {
+      return res.status(403).json({ message: "Forbidden - Super Admin access required" });
+    }
+    (req as any).dbUser = dbUser;
+    next();
+  } catch (error) {
+    console.error("Error checking super admin status:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Role-based middleware factory
+export const requireRole = (...allowedRoles: UserRole[]): RequestHandler => {
+  return async (req, res, next) => {
+    const user = req.user as any;
+
+    if (!req.isAuthenticated() || !user.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const dbUser = await storage.getUser(user.claims.sub);
+      if (!dbUser) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Check if user has one of the allowed roles or a higher role
+      const userRole = dbUser.role as UserRole;
+      const hasAccess = allowedRoles.some(role => hasRolePermission(userRole, role));
+      
+      if (!hasAccess) {
+        return res.status(403).json({ message: `Forbidden - Requires ${allowedRoles.join(" or ")} role` });
+      }
+
+      (req as any).dbUser = dbUser;
+      next();
+    } catch (error) {
+      console.error("Error checking role:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
+};
+
+// Manager check - must be assigned to the specific contest
+export const isContestManagerOrAdmin = (getContestId: (req: any) => string): RequestHandler => {
+  return async (req, res, next) => {
+    const user = req.user as any;
+
+    if (!req.isAuthenticated() || !user.claims?.sub) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const dbUser = await storage.getUser(user.claims.sub);
+      if (!dbUser) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Admins and super admins can access all contests
+      const userRole = dbUser.role as UserRole;
+      if (hasRolePermission(userRole, "admin")) {
+        (req as any).dbUser = dbUser;
+        return next();
+      }
+
+      // Managers can only access assigned contests
+      if (userRole === "manager") {
+        const contestId = getContestId(req);
+        const isManager = await storage.isContestManager(dbUser.id, contestId);
+        if (isManager) {
+          (req as any).dbUser = dbUser;
+          return next();
+        }
+      }
+
+      return res.status(403).json({ message: "Forbidden - Not authorized for this contest" });
+    } catch (error) {
+      console.error("Error checking contest access:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  };
 };

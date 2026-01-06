@@ -1,4 +1,4 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type SquareTemplate, type InsertSquareTemplate, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, squareTemplates } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type SquareTemplate, type InsertSquareTemplate, type ContestManager, type InsertContestManager, type UserRole, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, squareTemplates, contestManagers } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, asc, desc } from "drizzle-orm";
 
@@ -11,7 +11,17 @@ export interface IStorage {
 
   // User methods for Replit Auth
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUsersByOperator(operatorId: string): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUserRole(userId: string, role: UserRole): Promise<User | undefined>;
+  
+  // Contest Manager methods
+  getContestManagers(contestId: string): Promise<ContestManager[]>;
+  getContestsForManager(userId: string): Promise<ContestManager[]>;
+  addContestManager(manager: InsertContestManager): Promise<ContestManager>;
+  removeContestManager(userId: string, contestId: string): Promise<void>;
+  isContestManager(userId: string, contestId: string): Promise<boolean>;
   
   // Participant methods (master accounts for pool participants)
   getParticipant(id: string): Promise<Participant | undefined>;
@@ -110,6 +120,15 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async getUsersByOperator(operatorId: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.operatorId, operatorId));
+  }
+
   async upsertUser(userData: UpsertUser): Promise<User> {
     const result = await db
       .insert(users)
@@ -121,6 +140,7 @@ export class DbStorage implements IStorage {
           firstName: userData.firstName,
           lastName: userData.lastName,
           profileImageUrl: userData.profileImageUrl,
+          ...(userData.role !== undefined && { role: userData.role }),
           ...(userData.isAdmin !== undefined && { isAdmin: userData.isAdmin }),
           ...(userData.operatorId !== undefined && { operatorId: userData.operatorId }),
           updatedAt: new Date(),
@@ -128,6 +148,43 @@ export class DbStorage implements IStorage {
       })
       .returning();
     return result[0];
+  }
+
+  async updateUserRole(userId: string, role: UserRole): Promise<User | undefined> {
+    const isAdmin = role === 'admin' || role === 'super_admin';
+    const result = await db.update(users).set({ 
+      role, 
+      isAdmin, 
+      updatedAt: new Date() 
+    }).where(eq(users.id, userId)).returning();
+    return result[0];
+  }
+
+  // Contest Manager methods
+  async getContestManagers(contestId: string): Promise<ContestManager[]> {
+    return db.select().from(contestManagers).where(eq(contestManagers.contestId, contestId));
+  }
+
+  async getContestsForManager(userId: string): Promise<ContestManager[]> {
+    return db.select().from(contestManagers).where(eq(contestManagers.userId, userId));
+  }
+
+  async addContestManager(manager: InsertContestManager): Promise<ContestManager> {
+    const result = await db.insert(contestManagers).values(manager).returning();
+    return result[0];
+  }
+
+  async removeContestManager(userId: string, contestId: string): Promise<void> {
+    await db.delete(contestManagers).where(
+      and(eq(contestManagers.userId, userId), eq(contestManagers.contestId, contestId))
+    );
+  }
+
+  async isContestManager(userId: string, contestId: string): Promise<boolean> {
+    const result = await db.select().from(contestManagers).where(
+      and(eq(contestManagers.userId, userId), eq(contestManagers.contestId, contestId))
+    ).limit(1);
+    return result.length > 0;
   }
 
   // Participant methods (master accounts for pool participants)
