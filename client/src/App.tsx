@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useEffect, useRef } from "react";
+import type { UserRole } from "@shared/schema";
 
 import AdminDashboard from "@/pages/AdminDashboard";
 import NewContest from "@/pages/NewContest";
@@ -35,8 +36,21 @@ function LoginRedirect() {
   </div>;
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { isAuthenticated, isLoading, isAdmin } = useAuth();
+interface ProtectedRouteProps {
+  component: React.ComponentType;
+  requiredRole?: UserRole;
+}
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  manager: "Manager",
+  member: "Member",
+  trial: "Trial User",
+};
+
+function ProtectedRoute({ component: Component, requiredRole = "admin" }: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading, hasRole, role } = useAuth();
   const [location, setLocation] = useLocation();
   const currentPath = useRef(location);
 
@@ -62,9 +76,10 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
     return null;
   }
 
-  if (!isAdmin) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <p className="text-destructive">Access denied - Admin privileges required</p>
+  if (!hasRole(requiredRole)) {
+    return <div className="flex items-center justify-center min-h-screen flex-col gap-2">
+      <p className="text-destructive">Access denied - {ROLE_LABELS[requiredRole]} privileges required</p>
+      <p className="text-muted-foreground text-sm">Your role: {ROLE_LABELS[role]}</p>
     </div>;
   }
 
