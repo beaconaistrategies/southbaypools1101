@@ -8,6 +8,7 @@ export const contestStatusEnum = pgEnum("contest_status", ["open", "locked"]);
 export const squareStatusEnum = pgEnum("square_status", ["available", "taken", "disabled"]);
 export const operatorPlanEnum = pgEnum("operator_plan", ["free", "basic", "pro"]);
 export const operatorStatusEnum = pgEnum("operator_status", ["active", "suspended", "trial"]);
+export const userRoleEnum = pgEnum("user_role", ["super_admin", "admin", "manager", "member", "trial"]);
 
 // Operators table - represents a pool operator/tenant
 export const operators = pgTable("operators", {
@@ -50,13 +51,44 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  isAdmin: boolean("is_admin").notNull().default(false),
+  role: userRoleEnum("role").notNull().default("member"),
+  isAdmin: boolean("is_admin").notNull().default(false), // Deprecated: use role instead
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+
+// Role hierarchy for permission checks (higher index = more permissions)
+export const ROLE_HIERARCHY = ["trial", "member", "manager", "admin", "super_admin"] as const;
+export type UserRole = typeof ROLE_HIERARCHY[number];
+
+// Helper to check if a role has at least the required permission level
+export function hasRolePermission(userRole: UserRole, requiredRole: UserRole): boolean {
+  return ROLE_HIERARCHY.indexOf(userRole) >= ROLE_HIERARCHY.indexOf(requiredRole);
+}
+
+// Contest Managers - junction table for manager-contest assignments
+export const contestManagers = pgTable("contest_managers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  contestId: varchar("contest_id").notNull().references(() => contests.id, { onDelete: "cascade" }),
+  operatorId: varchar("operator_id").notNull().references(() => operators.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("contest_managers_user_contest_unique").on(table.userId, table.contestId),
+  index("contest_managers_user_idx").on(table.userId),
+  index("contest_managers_contest_idx").on(table.contestId),
+]);
+
+export const insertContestManagerSchema = createInsertSchema(contestManagers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertContestManager = z.infer<typeof insertContestManagerSchema>;
+export type ContestManager = typeof contestManagers.$inferSelect;
 
 // Participants table - master accounts for pool participants (separate from admin users)
 export const participants = pgTable("participants", {
