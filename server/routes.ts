@@ -36,6 +36,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
+
+  // Get all users in the operator (admin only)
+  app.get('/api/users', isAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user?.operatorId) {
+        return res.status(400).json({ message: "No operator assigned" });
+      }
+      const users = await storage.getUsersByOperator(user.operatorId);
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Update user role (admin only)
+  app.patch('/api/users/:userId/role', isAdmin, async (req: any, res) => {
+    try {
+      const adminUserId = req.user.claims.sub;
+      const adminUser = await storage.getUser(adminUserId);
+      const { userId } = req.params;
+      const { role } = req.body;
+      
+      // Validate role
+      const validRoles = ['super_admin', 'admin', 'manager', 'member', 'trial'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+
+      // Only super admins can assign super_admin role
+      if (role === 'super_admin' && adminUser?.role !== 'super_admin') {
+        return res.status(403).json({ message: "Only Super Admins can assign Super Admin role" });
+      }
+
+      // Get the target user
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Ensure admin can only manage users in their operator (unless super admin)
+      if (adminUser?.role !== 'super_admin' && targetUser.operatorId !== adminUser?.operatorId) {
+        return res.status(403).json({ message: "Cannot manage users from other operators" });
+      }
+
+      const updatedUser = await storage.updateUserRole(userId, role);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
   // Contest routes
   
   // Get all contests with square counts (operator-scoped for authenticated users)

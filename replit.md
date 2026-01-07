@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 
 **Database Layer:** Drizzle ORM for type-safe interactions with Neon serverless PostgreSQL via WebSocket. Uses a schema-first approach with Zod validation.
 
-**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Participants (master accounts with Replit Auth linking), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info, optional participantId link), SquareTemplates (reusable reserved square configurations).
+**Data Models:** Operators (multi-tenant organizations), Users (admin authentication with operatorId), Participants (master accounts with Replit Auth linking), Folders (organizational categories), Contests (configuration, status, winners), Squares (individual square state, holder info, optional participantId link), SquareTemplates (reusable reserved square configurations), ContestManagers (manager-contest assignments for RBAC).
 
 **Key Architectural Decisions:** Session-based authentication, real-time data consistency via query invalidation, separation of concerns using a storage layer abstraction, and multi-tenant operator isolation.
 
@@ -52,7 +52,17 @@ Preferred communication style: Simple, everyday language.
 
 ### System Design Choices
 
-**Authentication:** Admin-only access via Replit Auth (OIDC) with Google/GitHub/email login. Each operator's first user becomes admin. Protected routes ensure secure access. Operator isolation enforced on all admin endpoints.
+**Authentication & Authorization:** 
+- Replit Auth (OIDC) with Google/GitHub/email login. 
+- Role-based access control (RBAC) with five roles:
+  - **Super Admin**: Platform-level access across all operators
+  - **Admin**: Full control within their operator (users, contests, settings)
+  - **Manager**: Can manage specific assigned contests only
+  - **Member**: Authenticated participant with standard access
+  - **Trial User**: Limited access with restrictions
+- Each operator's first user becomes admin. Protected routes check role permissions.
+- ContestManagers table allows assigning managers to specific contests.
+- Operator isolation enforced on all admin endpoints.
 
 **Contest Configuration:**
 - **Layer Labels:** Consolidated `layerLabels` for both axes, displayed diagonally in the pink corner area.
