@@ -298,9 +298,8 @@ export const isAdmin: RequestHandler = async (req, res, next) => {
     if (!dbUser) {
       return res.status(403).json({ message: "Forbidden - Admin access required" });
     }
-    // Check role (with isAdmin fallback for backwards compatibility)
-    const hasAccess = hasRolePermission(dbUser.role as UserRole, "admin") || dbUser.isAdmin;
-    if (!hasAccess) {
+    // Check role hierarchy - no longer using isAdmin boolean fallback
+    if (!hasRolePermission(dbUser.role as UserRole, "admin")) {
       return res.status(403).json({ message: "Forbidden - Admin access required" });
     }
     // Attach user to request for use in routes
