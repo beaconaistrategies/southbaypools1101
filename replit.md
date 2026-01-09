@@ -85,6 +85,7 @@ Preferred communication style: Simple, everyday language.
 - Copy public link functionality.
 - Print-friendly styles for grids.
 - **Square Templates:** Save reserved square configurations as reusable templates. Load templates when creating new contests to quickly populate pre-assigned squares with regular pool members.
+- **User Management:** Admin interface at `/admin/users` to view all users and change their roles. Super admins can assign any role including super_admin. Accessible via dropdown menu in the top navigation.
 
 ## External Dependencies
 
@@ -110,3 +111,11 @@ Preferred communication style: Simple, everyday language.
 
 **Design System:**
 - `class-variance-authority` for component variant management
+
+## Recent Changes
+
+**January 2026:**
+- Implemented role-based access control (RBAC) with five roles: Super Admin, Admin, Manager, Member, Trial User
+- Added User Management page (`/admin/users`) for admins to view and change user roles
+- Created contest_managers table for assigning managers to specific contests
+- Updated authentication middleware to use role-based hierarchy instead of legacy boolean flag
