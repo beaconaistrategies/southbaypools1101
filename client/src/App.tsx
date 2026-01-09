@@ -22,6 +22,7 @@ import NewGolfPool from "@/pages/golf/NewGolfPool";
 import GolfPoolManager from "@/pages/golf/GolfPoolManager";
 import GolfSurvivorPicks from "@/pages/golf/GolfSurvivorPicks";
 import GolfPoolSignup from "@/pages/golf/GolfPoolSignup";
+import UserManagement from "@/pages/UserManagement";
 import NotFound from "@/pages/not-found";
 
 function LoginRedirect() {
@@ -95,6 +96,9 @@ function Router() {
       <Route path="/login" component={LoginRedirect} />
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} />}
+      </Route>
+      <Route path="/admin/users">
+        {() => <ProtectedRoute component={UserManagement} />}
       </Route>
       <Route path="/admin/contest/new">
         {() => <ProtectedRoute component={NewContest} />}

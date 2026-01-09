@@ -1,7 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut } from "lucide-react";
+import { LogOut, Users, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface TopNavProps {
   title?: string;
@@ -31,20 +38,31 @@ export default function TopNav({
             </Button>
           )}
           {user && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground" data-testid="text-user-email">
-                {user.email}
-              </span>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => window.location.href = '/api/logout'}
-                data-testid="button-logout"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" data-testid="button-user-menu">
+                  <span className="text-sm">{user.email}</span>
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <Link href="/admin/users">
+                  <DropdownMenuItem className="cursor-pointer" data-testid="menu-item-users">
+                    <Users className="h-4 w-4 mr-2" />
+                    User Management
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="cursor-pointer text-destructive"
+                  onClick={() => window.location.href = '/api/logout'}
+                  data-testid="menu-item-logout"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
