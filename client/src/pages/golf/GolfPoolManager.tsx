@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -194,7 +194,33 @@ export default function GolfPoolManager() {
               </p>
             </div>
 
-            <AlertDialog>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const signupUrl = `${window.location.origin}/golf/pool/${poolId}/signup`;
+                  try {
+                    await navigator.clipboard.writeText(signupUrl);
+                    toast({ title: "Link Copied", description: "Signup link copied to clipboard." });
+                  } catch (err) {
+                    toast({ title: "Error", description: "Failed to copy link.", variant: "destructive" });
+                  }
+                }}
+                data-testid="button-copy-signup-link"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Signup Link
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open(`/golf/pool/${poolId}/signup`, "_blank")}
+                data-testid="button-view-signup-page"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" data-testid="button-delete-pool">
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -219,7 +245,8 @@ export default function GolfPoolManager() {
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
-            </AlertDialog>
+              </AlertDialog>
+            </div>
           </div>
         </div>
 
