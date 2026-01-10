@@ -214,8 +214,9 @@ export default function GolfPoolManager() {
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={() => window.open(`/golf/pool/${poolId}/signup`, "_blank")}
+                aria-label="Open signup page in new tab"
                 data-testid="button-view-signup-page"
               >
                 <ExternalLink className="h-4 w-4" />
