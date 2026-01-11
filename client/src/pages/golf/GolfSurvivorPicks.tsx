@@ -293,7 +293,7 @@ export default function GolfSurvivorPicks() {
                             </div>
                           )}
                           
-                          <ScrollArea className="flex-1 h-[300px]">
+                          <ScrollArea className="h-[350px]">
                             <div className="space-y-1 pr-4">
                               {fieldLoading ? (
                                 <div className="flex items-center justify-center py-8">
