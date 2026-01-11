@@ -72,7 +72,9 @@ export interface IStorage {
   // Golf Pool Entry methods
   getGolfPoolEntries(poolId: string): Promise<GolfPoolEntry[]>;
   getGolfPoolEntry(id: string): Promise<GolfPoolEntry | undefined>;
+  getGolfPoolEntryByToken(token: string): Promise<GolfPoolEntry | undefined>;
   getGolfPoolEntriesByEmail(email: string): Promise<GolfPoolEntry[]>;
+  getGolfPoolEntriesByPoolAndEmail(poolId: string, email: string): Promise<GolfPoolEntry[]>;
   createGolfPoolEntry(entry: InsertGolfPoolEntry): Promise<GolfPoolEntry>;
   updateGolfPoolEntry(id: string, entry: Partial<GolfPoolEntry>): Promise<GolfPoolEntry | undefined>;
 
@@ -421,8 +423,18 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getGolfPoolEntryByToken(token: string): Promise<GolfPoolEntry | undefined> {
+    const result = await db.select().from(golfPoolEntries).where(eq(golfPoolEntries.manageToken, token)).limit(1);
+    return result[0];
+  }
+
   async getGolfPoolEntriesByEmail(email: string): Promise<GolfPoolEntry[]> {
     return await db.select().from(golfPoolEntries).where(eq(golfPoolEntries.email, email));
+  }
+
+  async getGolfPoolEntriesByPoolAndEmail(poolId: string, email: string): Promise<GolfPoolEntry[]> {
+    return await db.select().from(golfPoolEntries)
+      .where(and(eq(golfPoolEntries.poolId, poolId), eq(golfPoolEntries.email, email)));
   }
 
   async createGolfPoolEntry(entry: InsertGolfPoolEntry): Promise<GolfPoolEntry> {

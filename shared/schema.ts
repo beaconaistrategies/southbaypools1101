@@ -313,6 +313,7 @@ export const golfPoolEntries = pgTable("golf_pool_entries", {
   participantId: varchar("participant_id").references(() => participants.id, { onDelete: "set null" }),
   entryName: text("entry_name").notNull(), // Display name for this entry
   email: text("email").notNull(),
+  manageToken: varchar("manage_token").default(sql`gen_random_uuid()`), // Unique token for entry management access
   status: golfEntryStatusEnum("status").notNull().default("active"),
   eliminatedWeek: integer("eliminated_week"), // Week when eliminated
   usedGolfers: jsonb("used_golfers").$type<string[]>().default(sql`'[]'::jsonb`), // List of golfer names already used
@@ -320,6 +321,7 @@ export const golfPoolEntries = pgTable("golf_pool_entries", {
 }, (table) => [
   index("golf_pool_entries_pool_idx").on(table.poolId),
   index("golf_pool_entries_email_idx").on(table.email),
+  index("golf_pool_entries_token_idx").on(table.manageToken),
 ]);
 
 export const insertGolfPoolEntrySchema = createInsertSchema(golfPoolEntries).omit({
@@ -327,6 +329,7 @@ export const insertGolfPoolEntrySchema = createInsertSchema(golfPoolEntries).omi
   createdAt: true,
   eliminatedWeek: true,
   usedGolfers: true,
+  manageToken: true,
 });
 
 export type InsertGolfPoolEntry = z.infer<typeof insertGolfPoolEntrySchema>;

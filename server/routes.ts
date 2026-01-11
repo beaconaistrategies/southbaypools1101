@@ -1586,20 +1586,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email is required" });
       }
       
-      // Check if this email already has an entry in this pool
-      let existingEntries;
-      try {
-        existingEntries = await storage.getGolfPoolEntries(poolId);
-      } catch (err) {
-        console.error("Error checking existing entries:", err);
-        return res.status(500).json({ error: "Unable to process request" });
-      }
-      
-      const hasExisting = existingEntries.some(e => e.email.toLowerCase() === email.toLowerCase());
-      if (hasExisting) {
-        return res.status(400).json({ error: "You already have an entry in this pool" });
-      }
-      
       // Get or create participant
       let participant;
       try {
@@ -1668,6 +1654,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(entriesWithPool);
     } catch (error) {
       console.error("Error fetching participant golf entries:", error);
+      res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
+  // Get entry by manage token (for magic link access)
+  app.get("/api/golf/entry/token/:token", async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntryByToken(req.params.token);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      const pool = await storage.getGolfPool(entry.poolId);
+      const picks = await storage.getGolfPicks(entry.id);
+      
+      res.json({
+        entry,
+        pool: pool ? {
+          id: pool.id,
+          name: pool.name,
+          slug: pool.slug,
+          season: pool.season,
+          currentWeek: pool.currentWeek,
+          status: pool.status,
+        } : null,
+        picks,
+      });
+    } catch (error) {
+      console.error("Error fetching entry by token:", error);
+      res.status(500).json({ error: "Failed to fetch entry" });
+    }
+  });
+
+  // Update pick (edit before deadline)
+  app.put("/api/golf/entries/:entryId/picks/:weekNumber", async (req, res) => {
+    try {
+      const { entryId, weekNumber } = req.params;
+      const weekNum = parseInt(weekNumber);
+      
+      const entry = await storage.getGolfPoolEntry(entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      
+      // Check if entry is still active
+      if (entry.status === "eliminated") {
+        return res.status(400).json({ error: "Entry has been eliminated" });
+      }
+      
+      const pool = await storage.getGolfPool(entry.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      // Check if there's an existing pick for this week
+      const existingPicks = await storage.getGolfPicks(entryId);
+      const existingPick = existingPicks.find(p => p.weekNumber === weekNum);
+      
+      if (!existingPick) {
+        return res.status(404).json({ error: "No pick found for this week. Use POST to create a new pick." });
+      }
+      
+      const newGolferName = req.body.golferName;
+      const oldGolferName = existingPick.golferName;
+      
+      // Check if changing to a different golfer
+      if (newGolferName !== oldGolferName) {
+        // Check if new golfer was already used (excluding current week's pick)
+        const usedGolfers = entry.usedGolfers || [];
+        const usedExcludingCurrent = usedGolfers.filter((g: string) => g !== oldGolferName);
+        
+        if (usedExcludingCurrent.includes(newGolferName)) {
+          return res.status(400).json({ error: "This golfer has already been used" });
+        }
+        
+        // Update the used golfers list
+        const newUsedGolfers = [...usedExcludingCurrent, newGolferName];
+        await storage.updateGolfPoolEntry(entry.id, {
+          usedGolfers: newUsedGolfers,
+        });
+      }
+      
+      // Update the pick
+      const updatedPick = await storage.updateGolfPick(existingPick.id, {
+        golferName: newGolferName,
+        tournamentName: req.body.tournamentName || existingPick.tournamentName,
+      });
+      
+      // Send webhook notification for pick update if configured
+      if (pool.webhookUrl) {
+        void sendGolfPickWebhookNotification(pool.webhookUrl, {
+          poolName: pool.name,
+          poolId: pool.id,
+          entryName: entry.entryName,
+          recipientEmail: entry.email,
+          recipientName: entry.entryName,
+          golferName: newGolferName,
+          tournamentName: req.body.tournamentName || existingPick.tournamentName || "Unknown Tournament",
+          weekNumber: weekNum,
+        }).catch(err => console.error("Golf webhook notification failed:", err));
+      }
+      
+      res.json(updatedPick);
+    } catch (error) {
+      console.error("Error updating pick:", error);
+      res.status(500).json({ error: "Failed to update pick" });
+    }
+  });
+
+  // Public leaderboard - get all entries and picks for a pool
+  app.get("/api/public/golf/pools/:poolId/leaderboard", async (req, res) => {
+    try {
+      let pool = await storage.getGolfPool(req.params.poolId);
+      
+      // If not found by ID, try by slug
+      if (!pool) {
+        pool = await storage.getGolfPoolBySlug(req.params.poolId);
+      }
+      
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      const currentWeek = pool.currentWeek || 1;
+      
+      // Get picks for all entries and all weeks
+      const entriesWithPicks = await Promise.all(
+        entries.map(async (entry) => {
+          const picks = await storage.getGolfPicks(entry.id);
+          
+          // Mask current week picks (hide golfer name) - picks are revealed after deadline
+          // For now, we'll show all picks since we don't have deadline logic yet
+          // TODO: Add deadline check based on tournament start time
+          const maskedPicks = picks.map(pick => ({
+            ...pick,
+            // For current week, mask the pick if deadline hasn't passed
+            // golferName: pick.weekNumber === currentWeek ? "Hidden" : pick.golferName,
+          }));
+          
+          return {
+            id: entry.id,
+            entryName: entry.entryName,
+            status: entry.status,
+            eliminatedWeek: entry.eliminatedWeek,
+            picks: maskedPicks,
+          };
+        })
+      );
+      
+      res.json({
+        pool: {
+          id: pool.id,
+          name: pool.name,
+          season: pool.season,
+          currentWeek: pool.currentWeek,
+          status: pool.status,
+        },
+        entries: entriesWithPicks,
+      });
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      res.status(500).json({ error: "Failed to fetch leaderboard" });
+    }
+  });
+
+  // Get entries for a pool by email (for showing user's existing entries)
+  app.get("/api/golf/pools/:poolId/entries/email/:email", async (req, res) => {
+    try {
+      const entries = await storage.getGolfPoolEntriesByPoolAndEmail(
+        req.params.poolId,
+        decodeURIComponent(req.params.email)
+      );
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching entries by email:", error);
       res.status(500).json({ error: "Failed to fetch entries" });
     }
   });
