@@ -1272,6 +1272,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/golf/entries/:entryId", async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      return res.json(entry);
+    } catch (error) {
+      console.error("Error fetching entry:", error);
+      return res.status(500).json({ error: "Failed to fetch entry" });
+    }
+  });
+
   app.patch("/api/golf/entries/:id", isAdmin, async (req, res) => {
     try {
       const entry = await storage.updateGolfPoolEntry(req.params.id, req.body);

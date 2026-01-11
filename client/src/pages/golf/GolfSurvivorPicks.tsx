@@ -60,6 +60,16 @@ export default function GolfSurvivorPicks() {
     },
   });
 
+  const { data: entryData } = useQuery<GolfPoolEntry>({
+    queryKey: ["/api/golf/entries", entryId],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/entries/${entryId}`);
+      if (!response.ok) throw new Error("Failed to fetch entry");
+      return response.json();
+    },
+    enabled: !!entryId,
+  });
+
   const { data: tournaments = [] } = useQuery<GolfTournament[]>({
     queryKey: ["/api/golf/tournaments", pool?.season],
     queryFn: async () => {
@@ -70,7 +80,7 @@ export default function GolfSurvivorPicks() {
     enabled: !!pool?.season,
   });
 
-  const entry = pool?.entries?.find((e) => e.id === entryId);
+  const entry = entryData || pool?.entries?.find((e) => e.id === entryId);
   const currentTournament = tournaments.find((t) => t.weekNumber === pool?.currentWeek);
   const usedGolfers = (entry?.usedGolfers as string[]) || [];
   
