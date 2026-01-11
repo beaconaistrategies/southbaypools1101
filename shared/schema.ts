@@ -336,7 +336,8 @@ export const golfPicks = pgTable("golf_picks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   entryId: varchar("entry_id").notNull().references(() => golfPoolEntries.id, { onDelete: "cascade" }),
   poolId: varchar("pool_id").notNull().references(() => golfPools.id, { onDelete: "cascade" }),
-  tournamentId: varchar("tournament_id").notNull().references(() => golfTournaments.id, { onDelete: "cascade" }),
+  tournamentId: varchar("tournament_id").references(() => golfTournaments.id, { onDelete: "set null" }),
+  tournamentName: text("tournament_name"), // Store tournament name for display (from DataGolf or manual entry)
   weekNumber: integer("week_number").notNull(),
   golferName: text("golfer_name").notNull(), // Name of the golfer picked
   isAutoPick: boolean("is_auto_pick").notNull().default(false), // True if system auto-picked

@@ -5,6 +5,7 @@ import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFol
 import { z } from "zod";
 import { sendWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { dataGolfService } from "./datagolf";
 
 // Helper to get operatorId from authenticated request
 async function getOperatorId(req: Request): Promise<string | null> {
@@ -1329,16 +1330,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pool not found" });
       }
       
-      const validation = insertGolfPickSchema.safeParse({
-        ...req.body,
-        entryId: req.params.entryId,
-        poolId: entry.poolId,
-      });
-      if (!validation.success) {
-        return res.status(400).json({ error: validation.error.errors });
+      // Try to get tournament from internal database, but don't require it
+      let tournamentId: string | null = null;
+      let tournamentName: string | null = req.body.tournamentName || null;
+      
+      if (req.body.tournamentId) {
+        // Check if it's a valid UUID (internal tournament ID)
+        const tournament = await storage.getGolfTournament(req.body.tournamentId);
+        if (tournament) {
+          tournamentId = tournament.id;
+          tournamentName = tournament.name;
+        }
+        // If not found, it might be a DataGolf event ID or placeholder - that's okay, just store the name
       }
       
-      const pick = await storage.createGolfPick(validation.data);
+      const pickData = {
+        entryId: req.params.entryId,
+        poolId: entry.poolId,
+        weekNumber: req.body.weekNumber,
+        golferName: req.body.golferName,
+        tournamentId: tournamentId,
+        tournamentName: tournamentName,
+      };
+      
+      const pick = await storage.createGolfPick(pickData);
       
       // Update used golfers list
       await storage.updateGolfPoolEntry(entry.id, {
@@ -1376,6 +1391,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating pick:", error);
       return res.status(500).json({ error: "Failed to update pick" });
     }
+  });
+
+  // ========== DATAGOLF API ROUTES ==========
+
+  // Get DataGolf rankings
+  app.get("/api/datagolf/rankings", async (req, res) => {
+    try {
+      if (!dataGolfService.isConfigured()) {
+        return res.status(503).json({ error: "DataGolf API not configured" });
+      }
+      const rankings = await dataGolfService.getRankings();
+      return res.json(rankings);
+    } catch (error) {
+      console.error("Error fetching DataGolf rankings:", error);
+      return res.status(500).json({ error: "Failed to fetch rankings" });
+    }
+  });
+
+  // Get current tournament field with rankings
+  app.get("/api/datagolf/field", async (req, res) => {
+    try {
+      if (!dataGolfService.isConfigured()) {
+        return res.status(503).json({ error: "DataGolf API not configured" });
+      }
+      const tour = (req.query.tour as string) || "pga";
+      const field = await dataGolfService.getCurrentField(tour);
+      return res.json(field);
+    } catch (error) {
+      console.error("Error fetching DataGolf field:", error);
+      return res.status(500).json({ error: "Failed to fetch field" });
+    }
+  });
+
+  // Search golfers by name
+  app.get("/api/datagolf/search", async (req, res) => {
+    try {
+      if (!dataGolfService.isConfigured()) {
+        return res.status(503).json({ error: "DataGolf API not configured" });
+      }
+      const query = req.query.q as string;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+      const golfers = await dataGolfService.searchGolfers(query);
+      return res.json(golfers);
+    } catch (error) {
+      console.error("Error searching golfers:", error);
+      return res.status(500).json({ error: "Failed to search golfers" });
+    }
+  });
+
+  // Check if DataGolf is configured
+  app.get("/api/datagolf/status", async (req, res) => {
+    return res.json({ configured: dataGolfService.isConfigured() });
   });
 
   // ========== PUBLIC GOLF SURVIVOR ROUTES ==========

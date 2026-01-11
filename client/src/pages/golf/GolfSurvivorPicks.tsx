@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -7,10 +7,29 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import type { GolfPool, GolfPoolEntry, GolfTournament, GolfPick } from "@shared/schema";
-import { ArrowLeft, Trophy, Calendar, CircleDot, Check, X, Flag, User } from "lucide-react";
+import { ArrowLeft, Trophy, Calendar, CircleDot, Check, X, Flag, User, Search, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+
+type GolferWithRanking = {
+  dgId: number;
+  name: string;
+  country: string;
+  dgRank: number | null;
+  owgrRank: number | null;
+  skillEstimate: number | null;
+  inField: boolean;
+};
+
+type TournamentField = {
+  eventName: string;
+  eventId: string;
+  tour: string;
+  lastUpdated: string;
+  golfers: GolferWithRanking[];
+};
 
 type PoolWithDetails = GolfPool & {
   entries: GolfPoolEntry[];
@@ -29,6 +48,8 @@ export default function GolfSurvivorPicks() {
   const { toast } = useToast();
   const [showPickDialog, setShowPickDialog] = useState(false);
   const [golferName, setGolferName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
 
   const { data: pool } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -63,10 +84,38 @@ export default function GolfSurvivorPicks() {
     enabled: !!entryId,
   });
 
+  const { data: dataGolfStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ["/api/datagolf/status"],
+  });
+
+  const { data: fieldData, isLoading: fieldLoading } = useQuery<TournamentField>({
+    queryKey: ["/api/datagolf/field"],
+    queryFn: async () => {
+      const response = await fetch("/api/datagolf/field?tour=pga");
+      if (!response.ok) throw new Error("Failed to fetch field");
+      return response.json();
+    },
+    enabled: dataGolfStatus?.configured === true,
+    retry: false,
+  });
+
   const currentWeekPick = picks.find((p) => p.weekNumber === pool?.currentWeek);
 
+  const filteredGolfers = useMemo(() => {
+    if (!fieldData?.golfers) return [];
+    
+    let golfers = fieldData.golfers;
+    
+    if (searchQuery) {
+      const lowerQuery = searchQuery.toLowerCase();
+      golfers = golfers.filter(g => g.name.toLowerCase().includes(lowerQuery));
+    }
+    
+    return golfers;
+  }, [fieldData?.golfers, searchQuery]);
+
   const makePickMutation = useMutation({
-    mutationFn: async (data: { golferName: string; tournamentId: string; weekNumber: number }) => {
+    mutationFn: async (data: { golferName: string; tournamentId?: string; tournamentName?: string; weekNumber: number }) => {
       return await apiRequest("POST", `/api/golf/entries/${entryId}/picks`, data);
     },
     onSuccess: () => {
@@ -82,13 +131,21 @@ export default function GolfSurvivorPicks() {
   });
 
   const handleMakePick = () => {
-    if (golferName && currentTournament && pool?.currentWeek) {
+    const nameToSubmit = selectedGolfer?.name || golferName.trim();
+    if (nameToSubmit && pool?.currentWeek) {
+      const tournamentName = currentTournament?.name || fieldData?.eventName || `Week ${pool.currentWeek}`;
       makePickMutation.mutate({
-        golferName: golferName.trim(),
-        tournamentId: currentTournament.id,
+        golferName: nameToSubmit,
+        tournamentId: currentTournament?.id,
+        tournamentName: tournamentName,
         weekNumber: pool.currentWeek,
       });
     }
+  };
+
+  const handleSelectGolfer = (golfer: GolferWithRanking) => {
+    setSelectedGolfer(golfer);
+    setGolferName(golfer.name);
   };
 
   const isGolferUsed = (name: string) => {
@@ -176,35 +233,137 @@ export default function GolfSurvivorPicks() {
               ) : (
                 <div className="text-center py-4">
                   <p className="text-muted-foreground mb-4">You haven't made a pick for this week yet.</p>
-                  <Dialog open={showPickDialog} onOpenChange={setShowPickDialog}>
+                  <Dialog open={showPickDialog} onOpenChange={(open) => {
+                    setShowPickDialog(open);
+                    if (!open) {
+                      setSearchQuery("");
+                      setSelectedGolfer(null);
+                      setGolferName("");
+                    }
+                  }}>
                     <DialogTrigger asChild>
                       <Button data-testid="button-make-pick">
                         <Flag className="h-4 w-4 mr-2" />
                         Make Your Pick
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
+                    <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
                       <DialogHeader>
                         <DialogTitle>Pick a Golfer</DialogTitle>
                         <DialogDescription>
-                          Choose a golfer for {currentTournament?.name}. You cannot use the same golfer twice.
+                          {fieldData?.eventName ? (
+                            <>Select from {fieldData.eventName} field. You cannot use the same golfer twice.</>
+                          ) : (
+                            <>Choose a golfer for {currentTournament?.name}. You cannot use the same golfer twice.</>
+                          )}
                         </DialogDescription>
                       </DialogHeader>
-                      <div className="py-4">
-                        <label className="text-sm font-medium">Golfer Name</label>
-                        <Input
-                          value={golferName}
-                          onChange={(e) => setGolferName(e.target.value)}
-                          placeholder="e.g., Scottie Scheffler"
-                          data-testid="input-golfer-name"
-                        />
-                        {golferName && isGolferUsed(golferName) && (
-                          <p className="text-sm text-destructive mt-2">
-                            You've already used this golfer in a previous week.
-                          </p>
-                        )}
-                      </div>
-                      <DialogFooter>
+                      
+                      {dataGolfStatus?.configured && fieldData?.golfers ? (
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                          <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="Search golfers..."
+                              className="pl-10"
+                              data-testid="input-search-golfer"
+                            />
+                          </div>
+                          
+                          {selectedGolfer && (
+                            <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{selectedGolfer.name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  DG Rank: #{selectedGolfer.dgRank || "N/A"} | OWGR: #{selectedGolfer.owgrRank || "N/A"}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedGolfer(null);
+                                  setGolferName("");
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                          
+                          <ScrollArea className="flex-1 h-[300px]">
+                            <div className="space-y-1 pr-4">
+                              {fieldLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                              ) : filteredGolfers.length === 0 ? (
+                                <p className="text-center text-muted-foreground py-8">No golfers found</p>
+                              ) : (
+                                filteredGolfers.map((golfer) => {
+                                  const used = isGolferUsed(golfer.name);
+                                  const isSelected = selectedGolfer?.dgId === golfer.dgId;
+                                  
+                                  return (
+                                    <button
+                                      key={golfer.dgId}
+                                      onClick={() => !used && handleSelectGolfer(golfer)}
+                                      disabled={used}
+                                      className={`w-full text-left p-3 rounded-lg transition-colors flex items-center justify-between gap-2 ${
+                                        isSelected 
+                                          ? "bg-primary/20 border border-primary" 
+                                          : used 
+                                            ? "opacity-50 cursor-not-allowed bg-muted/50" 
+                                            : "hover-elevate bg-muted/30"
+                                      }`}
+                                      data-testid={`golfer-${golfer.dgId}`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                                          {golfer.dgRank || "-"}
+                                        </div>
+                                        <div>
+                                          <p className="font-medium">{golfer.name}</p>
+                                          <p className="text-xs text-muted-foreground">{golfer.country}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {used && (
+                                          <Badge variant="secondary" className="text-xs">Used</Badge>
+                                        )}
+                                        {golfer.owgrRank && (
+                                          <Badge variant="outline" className="text-xs">
+                                            OWGR #{golfer.owgrRank}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      ) : (
+                        <div className="py-4">
+                          <label className="text-sm font-medium">Golfer Name</label>
+                          <Input
+                            value={golferName}
+                            onChange={(e) => setGolferName(e.target.value)}
+                            placeholder="e.g., Scottie Scheffler"
+                            data-testid="input-golfer-name"
+                          />
+                          {golferName && isGolferUsed(golferName) && (
+                            <p className="text-sm text-destructive mt-2">
+                              You've already used this golfer in a previous week.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      <DialogFooter className="mt-4">
                         <Button variant="outline" onClick={() => setShowPickDialog(false)}>
                           Cancel
                         </Button>
