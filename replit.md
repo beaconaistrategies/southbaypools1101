@@ -112,6 +112,18 @@ Preferred communication style: Simple, everyday language.
 **Design System:**
 - `class-variance-authority` for component variant management
 
+## External APIs
+
+**DataGolf API:**
+- Integration for live golf tournament fields and rankings
+- Service located at `server/datagolf.ts` with 15-minute TTL caching
+- Requires `DATAGOLF_API_KEY` secret
+- Endpoints:
+  - `GET /api/datagolf/status` - Check if API is configured
+  - `GET /api/datagolf/rankings` - Get world golf rankings
+  - `GET /api/datagolf/field?tour=pga` - Get current tournament field
+  - `GET /api/datagolf/search?q=name` - Search for golfers
+
 ## Recent Changes
 
 **January 2026:**
@@ -119,3 +131,6 @@ Preferred communication style: Simple, everyday language.
 - Added User Management page (`/admin/users`) for admins to view and change user roles
 - Created contest_managers table for assigning managers to specific contests
 - Updated authentication middleware to use role-based hierarchy instead of legacy boolean flag
+- Integrated DataGolf API for Golf Survivor with golfer rankings and tournament field data
+- Made golf_picks.tournamentId nullable to support picks without internal tournament records
+- Added tournamentName column to golf_picks for display purposes
