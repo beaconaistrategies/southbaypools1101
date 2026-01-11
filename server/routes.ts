@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
-import { sendWebhookNotification, sendGolfPickWebhookNotification } from "./webhook";
+import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
 
@@ -1601,9 +1601,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get or create participant
       let participant;
+      let isNewUser = false;
       try {
         participant = await storage.getParticipantByAuthId(authId);
         if (!participant) {
+          isNewUser = true;
           participant = await storage.upsertParticipant({
             authId,
             email,
@@ -1616,6 +1618,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error managing participant:", err);
         return res.status(500).json({ error: "Unable to process request" });
       }
+      
+      // Get existing entries count for entry numbering
+      let existingEntries: any[] = [];
+      try {
+        existingEntries = await storage.getGolfPoolEntriesByEmail(email);
+      } catch (err) {
+        console.error("Error fetching existing entries:", err);
+      }
+      const entryNumber = existingEntries.filter(e => e.poolId === poolId).length + 1;
       
       // Create the entry
       let entry;
@@ -1630,6 +1641,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err) {
         console.error("Error creating entry:", err);
         return res.status(500).json({ error: "Unable to create entry" });
+      }
+      
+      // Send webhook notifications (fire-and-forget)
+      if (pool.webhookUrl) {
+        const recipientName = [req.user.claims.first_name, req.user.claims.last_name].filter(Boolean).join(" ") || email;
+        
+        // Send signup notification for new users
+        if (isNewUser) {
+          void sendGolfSignupWebhookNotification(pool.webhookUrl, {
+            poolName: pool.name,
+            poolId: pool.id,
+            recipientEmail: email,
+            recipientName,
+          }).catch(err => console.error("Signup webhook error:", err));
+        }
+        
+        // Send entry creation notification
+        void sendGolfEntryWebhookNotification(pool.webhookUrl, {
+          poolName: pool.name,
+          poolId: pool.id,
+          entryName: entry.entryName,
+          entryNumber,
+          recipientEmail: email,
+          recipientName,
+        }).catch(err => console.error("Entry webhook error:", err));
       }
       
       res.json(entry);

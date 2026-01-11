@@ -59,6 +59,114 @@ export async function sendGolfPickWebhookNotification(
   }
 }
 
+// Golf pool signup notification webhook
+export async function sendGolfSignupWebhookNotification(
+  webhookUrl: string,
+  data: {
+    poolName: string;
+    poolId: string;
+    recipientEmail: string;
+    recipientName: string;
+  }
+): Promise<void> {
+  if (!webhookUrl) {
+    console.log("⚠️  Golf webhook URL not configured, skipping signup notification");
+    return;
+  }
+
+  console.log(`🏌️ Sending golf signup notification for ${data.recipientName} to ${webhookUrl}`);
+
+  try {
+    const payload = {
+      event: "golf_user_signup",
+      timestamp: new Date().toISOString(),
+      data,
+      to: data.recipientEmail,
+      recipientEmail: data.recipientEmail,
+      recipientName: data.recipientName,
+      subject: `Welcome to ${data.poolName}!`,
+      poolName: data.poolName,
+      poolId: data.poolId,
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      console.error(`❌ Golf signup webhook failed: ${response.status} ${response.statusText}`);
+      console.error(`   Response body: ${errorText}`);
+    } else {
+      console.log(`✅ Golf signup notification sent successfully for ${data.recipientName}`);
+    }
+  } catch (error) {
+    console.error("❌ Failed to send golf signup webhook notification:", error);
+    console.error(`   Webhook URL: ${webhookUrl}`);
+    console.error(`   Error details:`, error instanceof Error ? error.message : String(error));
+  }
+}
+
+// Golf entry creation notification webhook
+export async function sendGolfEntryWebhookNotification(
+  webhookUrl: string,
+  data: {
+    poolName: string;
+    poolId: string;
+    entryName: string;
+    entryNumber: number;
+    recipientEmail: string;
+    recipientName: string;
+  }
+): Promise<void> {
+  if (!webhookUrl) {
+    console.log("⚠️  Golf webhook URL not configured, skipping entry notification");
+    return;
+  }
+
+  console.log(`🏌️ Sending golf entry notification for ${data.entryName} to ${webhookUrl}`);
+
+  try {
+    const payload = {
+      event: "golf_entry_created",
+      timestamp: new Date().toISOString(),
+      data,
+      to: data.recipientEmail,
+      recipientEmail: data.recipientEmail,
+      recipientName: data.recipientName,
+      subject: `Entry Created - ${data.entryName} in ${data.poolName}`,
+      poolName: data.poolName,
+      poolId: data.poolId,
+      entryName: data.entryName,
+      entryNumber: data.entryNumber,
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => response.statusText);
+      console.error(`❌ Golf entry webhook failed: ${response.status} ${response.statusText}`);
+      console.error(`   Response body: ${errorText}`);
+    } else {
+      console.log(`✅ Golf entry notification sent successfully for ${data.entryName}`);
+    }
+  } catch (error) {
+    console.error("❌ Failed to send golf entry webhook notification:", error);
+    console.error(`   Webhook URL: ${webhookUrl}`);
+    console.error(`   Error details:`, error instanceof Error ? error.message : String(error));
+  }
+}
+
 // Football squares notification webhook
 export async function sendWebhookNotification(
   webhookUrl: string,
