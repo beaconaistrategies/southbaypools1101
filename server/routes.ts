@@ -1344,6 +1344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // If not found, it might be a DataGolf event ID or placeholder - that's okay, just store the name
       }
       
+      // Build and validate pick data
       const pickData = {
         entryId: req.params.entryId,
         poolId: entry.poolId,
@@ -1353,7 +1354,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tournamentName: tournamentName,
       };
       
-      const pick = await storage.createGolfPick(pickData);
+      const validation = insertGolfPickSchema.safeParse(pickData);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.errors });
+      }
+      
+      const pick = await storage.createGolfPick(validation.data);
       
       // Update used golfers list
       await storage.updateGolfPoolEntry(entry.id, {
