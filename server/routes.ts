@@ -1779,20 +1779,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const entries = await storage.getGolfPoolEntries(pool.id);
       const currentWeek = pool.currentWeek || 1;
+      const pickDeadlineHours = pool.pickDeadlineHours || 0;
+      
+      // Get current tournament to determine deadline
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const currentTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === currentWeek);
+      
+      // Calculate if deadline has passed for current week
+      let deadlinePassed = false;
+      let deadlineTime: Date | null = null;
+      
+      if (currentTournament && currentTournament.startDate) {
+        const tournamentStart = new Date(currentTournament.startDate);
+        deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
+        deadlinePassed = new Date() >= deadlineTime;
+      }
       
       // Get picks for all entries and all weeks
       const entriesWithPicks = await Promise.all(
         entries.map(async (entry) => {
           const picks = await storage.getGolfPicks(entry.id);
           
-          // Mask current week picks (hide golfer name) - picks are revealed after deadline
-          // For now, we'll show all picks since we don't have deadline logic yet
-          // TODO: Add deadline check based on tournament start time
-          const maskedPicks = picks.map(pick => ({
-            ...pick,
-            // For current week, mask the pick if deadline hasn't passed
-            // golferName: pick.weekNumber === currentWeek ? "Hidden" : pick.golferName,
-          }));
+          // Mask current week picks if deadline hasn't passed
+          const maskedPicks = picks.map(pick => {
+            const isCurrentWeek = pick.weekNumber === currentWeek;
+            const shouldMask = isCurrentWeek && !deadlinePassed;
+            
+            return {
+              id: pick.id,
+              weekNumber: pick.weekNumber,
+              golferName: shouldMask ? "Hidden until deadline" : pick.golferName,
+              tournamentName: pick.tournamentName,
+              result: pick.result,
+              masked: shouldMask,
+            };
+          });
           
           return {
             id: entry.id,
@@ -1811,7 +1832,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           season: pool.season,
           currentWeek: pool.currentWeek,
           status: pool.status,
+          pickDeadlineHours: pickDeadlineHours,
         },
+        deadlinePassed,
+        deadlineTime: deadlineTime?.toISOString() || null,
         entries: entriesWithPicks,
       });
     } catch (error) {

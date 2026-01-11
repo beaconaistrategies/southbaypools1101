@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Trophy, Users, Check, X, CircleDot } from "lucide-react";
+import { ArrowLeft, Trophy, Users, Check, X, CircleDot, EyeOff, Clock } from "lucide-react";
+import { format } from "date-fns";
 
 type LeaderboardEntry = {
   id: string;
@@ -18,6 +19,7 @@ type LeaderboardEntry = {
     golferName: string;
     tournamentName: string | null;
     result: string;
+    masked?: boolean;
   }>;
 };
 
@@ -28,7 +30,10 @@ type LeaderboardData = {
     season: number;
     currentWeek: number;
     status: string;
+    pickDeadlineHours?: number;
   };
+  deadlinePassed: boolean;
+  deadlineTime: string | null;
   entries: LeaderboardEntry[];
 };
 
@@ -62,11 +67,13 @@ export default function GolfPoolLeaderboard() {
     );
   }
 
-  const { pool, entries } = leaderboard;
+  const { pool, entries, deadlinePassed, deadlineTime } = leaderboard;
   const activeEntries = entries.filter((e) => e.status === "active");
   const eliminatedEntries = entries.filter((e) => e.status === "eliminated");
   const maxWeek = Math.max(pool.currentWeek || 1, ...entries.flatMap((e) => e.picks.map((p) => p.weekNumber)));
   const weeks = Array.from({ length: maxWeek }, (_, i) => i + 1);
+  
+  const formattedDeadline = deadlineTime ? format(new Date(deadlineTime), "EEE, MMM d 'at' h:mm a") : null;
 
   const getPickForWeek = (entry: LeaderboardEntry, week: number) => {
     return entry.picks.find((p) => p.weekNumber === week);
@@ -122,6 +129,16 @@ export default function GolfPoolLeaderboard() {
               </div>
             </div>
           </div>
+          {!deadlinePassed && formattedDeadline && (
+            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                <Clock className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  Week {pool.currentWeek} picks hidden until {formattedDeadline}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -215,12 +232,19 @@ function LeaderboardTable({
                       className={`text-center ${isCurrentWeek ? "bg-primary/5" : ""}`}
                     >
                       {pick ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-sm font-medium truncate max-w-[100px]" title={pick.golferName}>
-                            {pick.golferName}
-                          </span>
-                          {getResultBadge(pick.result)}
-                        </div>
+                        pick.masked ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Hidden</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm font-medium truncate max-w-[100px]" title={pick.golferName}>
+                              {pick.golferName}
+                            </span>
+                            {getResultBadge(pick.result)}
+                          </div>
+                        )
                       ) : (
                         <span className="text-muted-foreground text-xs">-</span>
                       )}
