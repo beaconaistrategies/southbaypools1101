@@ -149,7 +149,7 @@ export default function Hub() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Season 2025</span>
+                  <span className="text-sm text-muted-foreground">Season 2026</span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </div>
               </CardContent>

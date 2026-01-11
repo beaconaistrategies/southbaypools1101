@@ -204,7 +204,7 @@ export default function GolfSurvivorPicks() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Week {pool.currentWeek}: {currentTournament?.name || "No tournament"}
+                Week {pool.currentWeek}: {fieldData?.eventName || currentTournament?.name || "No tournament"}
               </CardTitle>
               {currentTournament && (
                 <CardDescription>
@@ -408,7 +408,7 @@ export default function GolfSurvivorPicks() {
                         <div>
                           <p className="font-medium">{pick.golferName}</p>
                           <p className="text-sm text-muted-foreground">
-                            Week {pick.weekNumber}: {tournament?.name || "Unknown"}
+                            Week {pick.weekNumber}: {pick.tournamentName || tournament?.name || "Unknown"}
                           </p>
                         </div>
                         {pick.result === "pending" ? (

@@ -42,7 +42,7 @@ export default function GolfSurvivor() {
           <div className="container mx-auto px-4 text-center">
             <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-4 py-2 rounded-full text-sm font-medium mb-6">
               <Trophy className="h-4 w-4" />
-              PGA Tour Season 2025
+              PGA Tour Season 2026
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
               South Bay Golf Survivor
