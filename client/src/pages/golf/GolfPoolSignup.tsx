@@ -234,24 +234,31 @@ export default function GolfPoolSignup() {
                   <div className="space-y-3">
                     <Label>Your Entries</Label>
                     {myEntries.map((entry) => (
-                      <Link key={entry.id} href={`/golf/pool/${poolId}/entry/${entry.id}`}>
-                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg cursor-pointer hover-elevate" data-testid={`entry-${entry.id}`}>
-                          <div className="flex items-center gap-3">
-                            <Flag className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{entry.entryName}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {entry.status === "active" ? (
-                              <Badge className="bg-green-600 text-white text-xs">Active</Badge>
-                            ) : (
-                              <Badge variant="destructive" className="text-xs">Eliminated</Badge>
-                            )}
-                            <Button variant="ghost" size="sm">
-                              Manage Picks
-                            </Button>
-                          </div>
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                        data-testid={`entry-${entry.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Flag className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{entry.entryName}</span>
                         </div>
-                      </Link>
+                        <div className="flex items-center gap-2">
+                          {entry.status === "active" ? (
+                            <Badge className="bg-green-600 text-white text-xs">Active</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-xs">Eliminated</Badge>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLocation(`/golf/pool/${poolId}/entry/${entry.id}`)}
+                            data-testid={`button-manage-${entry.id}`}
+                          >
+                            Manage Picks
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                     <div className="border-t pt-4 mt-4">
                       <p className="text-sm text-muted-foreground mb-3">Add another entry to this pool:</p>
