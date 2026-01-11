@@ -27,6 +27,7 @@ const formSchema = z.object({
   prizePool: z.string().optional(),
   pickDeadlineHours: z.number().min(0).max(72).optional(),
   notes: z.string().optional(),
+  webhookUrl: z.string().url().optional().or(z.literal('')),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -45,6 +46,7 @@ export default function NewGolfPool() {
       prizePool: "",
       pickDeadlineHours: 0,
       notes: "",
+      webhookUrl: "",
     },
   });
 
@@ -253,6 +255,27 @@ export default function NewGolfPool() {
                           data-testid="input-notes"
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="webhookUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Webhook URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="https://your-n8n-webhook-url.com/..."
+                          {...field}
+                          data-testid="input-webhook-url"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        n8n webhook URL to send pick confirmation emails
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

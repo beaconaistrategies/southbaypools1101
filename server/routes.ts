@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
-import { sendWebhookNotification } from "./webhook";
+import { sendWebhookNotification, sendGolfPickWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
 
@@ -1365,6 +1365,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateGolfPoolEntry(entry.id, {
         usedGolfers: [...usedGolfers, req.body.golferName],
       });
+      
+      // Send webhook notification if configured (fire-and-forget, non-blocking)
+      if (pool.webhookUrl) {
+        void sendGolfPickWebhookNotification(pool.webhookUrl, {
+          poolName: pool.name,
+          poolId: pool.id,
+          entryName: entry.entryName,
+          recipientEmail: entry.email,
+          recipientName: entry.entryName,
+          golferName: req.body.golferName,
+          tournamentName: tournamentName || "Unknown Tournament",
+          weekNumber: req.body.weekNumber,
+        }).catch(err => console.error("Golf webhook notification failed:", err));
+      }
       
       return res.json(pick);
     } catch (error) {

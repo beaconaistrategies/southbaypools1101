@@ -436,35 +436,55 @@ export default function GolfPoolManager() {
           </CardContent>
         </Card>
 
-        {pool.entryFee || pool.prizePool || pool.notes ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Pool Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {pool.entryFee && (
-                <div className="flex items-center gap-2">
-                  <CircleDot className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Entry Fee:</span>
-                  <span>{pool.entryFee}</span>
-                </div>
-              )}
-              {pool.prizePool && (
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Prize Pool:</span>
-                  <span>{pool.prizePool}</span>
-                </div>
-              )}
-              {pool.notes && (
-                <div>
-                  <span className="font-medium">Notes:</span>
-                  <p className="text-muted-foreground mt-1">{pool.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Pool Settings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pool.entryFee && (
+              <div className="flex items-center gap-2">
+                <CircleDot className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Entry Fee:</span>
+                <span>{pool.entryFee}</span>
+              </div>
+            )}
+            {pool.prizePool && (
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Prize Pool:</span>
+                <span>{pool.prizePool}</span>
+              </div>
+            )}
+            {pool.notes && (
+              <div>
+                <span className="font-medium">Notes:</span>
+                <p className="text-muted-foreground mt-1">{pool.notes}</p>
+              </div>
+            )}
+            <div className="pt-2 border-t">
+              <label className="block text-sm font-medium mb-2">Webhook URL (for pick notifications)</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="https://your-n8n-webhook-url.com/..."
+                  defaultValue={pool.webhookUrl || ""}
+                  onBlur={(e) => {
+                    const newUrl = e.target.value.trim();
+                    if (newUrl !== (pool.webhookUrl || "")) {
+                      updatePoolMutation.mutate({ webhookUrl: newUrl || null });
+                    }
+                  }}
+                  data-testid="input-webhook-url"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                n8n webhook URL to send pick confirmation emails when participants submit picks
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

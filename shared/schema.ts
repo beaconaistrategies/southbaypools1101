@@ -284,6 +284,7 @@ export const golfPools = pgTable("golf_pools", {
   currentWeek: integer("current_week").default(1),
   pickDeadlineHours: integer("pick_deadline_hours").default(0), // Hours before tournament start
   notes: text("notes"),
+  webhookUrl: text("webhook_url"), // n8n webhook URL for pick notifications
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   uniqueIndex("golf_pools_operator_slug_unique").on(table.operatorId, table.slug),
