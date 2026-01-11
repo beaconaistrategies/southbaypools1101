@@ -134,3 +134,8 @@ Preferred communication style: Simple, everyday language.
 - Integrated DataGolf API for Golf Survivor with golfer rankings and tournament field data
 - Made golf_picks.tournamentId nullable to support picks without internal tournament records
 - Added tournamentName column to golf_picks for display purposes
+- Added configurable webhook URLs to golf pools with admin UI in pool creation and pool manager
+- Enabled multiple entries per user for golf pools (removed single-entry restriction)
+- Added edit pick functionality with "Change Pick" button that uses PUT endpoint
+- Built public leaderboard page (`/golf/pool/:poolId/leaderboard`) showing all entries with tabbed view (all/active/eliminated)
+- Updated signup page to display user's existing entries with manage links and allow adding more entries
