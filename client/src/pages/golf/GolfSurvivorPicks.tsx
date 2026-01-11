@@ -124,22 +124,49 @@ export default function GolfSurvivorPicks() {
       toast({ title: "Pick Submitted", description: "Your golfer pick has been recorded." });
       setShowPickDialog(false);
       setGolferName("");
+      setSelectedGolfer(null);
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleMakePick = () => {
+  const updatePickMutation = useMutation({
+    mutationFn: async (data: { golferName: string; tournamentName?: string; weekNumber: number }) => {
+      return await apiRequest("PUT", `/api/golf/entries/${entryId}/picks/${data.weekNumber}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/entries", entryId, "picks"] });
+      toast({ title: "Pick Updated", description: "Your golfer pick has been changed." });
+      setShowPickDialog(false);
+      setGolferName("");
+      setSelectedGolfer(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleMakePick = (isEdit: boolean = false) => {
     const nameToSubmit = selectedGolfer?.name || golferName.trim();
     if (nameToSubmit && pool?.currentWeek) {
       const tournamentName = currentTournament?.name || fieldData?.eventName || `Week ${pool.currentWeek}`;
-      makePickMutation.mutate({
-        golferName: nameToSubmit,
-        tournamentId: currentTournament?.id,
-        tournamentName: tournamentName,
-        weekNumber: pool.currentWeek,
-      });
+      
+      if (isEdit && currentWeekPick) {
+        updatePickMutation.mutate({
+          golferName: nameToSubmit,
+          tournamentName: tournamentName,
+          weekNumber: pool.currentWeek,
+        });
+      } else {
+        makePickMutation.mutate({
+          golferName: nameToSubmit,
+          tournamentId: currentTournament?.id,
+          tournamentName: tournamentName,
+          weekNumber: pool.currentWeek,
+        });
+      }
     }
   };
 
@@ -214,20 +241,176 @@ export default function GolfSurvivorPicks() {
             </CardHeader>
             <CardContent>
               {currentWeekPick ? (
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{currentWeekPick.golferName}</p>
-                      <p className="text-sm text-muted-foreground">Your pick for this week</p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{currentWeekPick.golferName}</p>
+                        <p className="text-sm text-muted-foreground">Your pick for this week</p>
+                      </div>
                     </div>
+                    {currentWeekPick.result === "pending" ? (
+                      <Badge variant="secondary">Pending</Badge>
+                    ) : currentWeekPick.result === "survived" ? (
+                      <Badge className="bg-green-600 text-white">Survived</Badge>
+                    ) : (
+                      <Badge variant="destructive">Eliminated</Badge>
+                    )}
                   </div>
-                  {currentWeekPick.result === "pending" ? (
-                    <Badge variant="secondary">Pending</Badge>
-                  ) : currentWeekPick.result === "survived" ? (
-                    <Badge className="bg-green-600 text-white">Survived</Badge>
-                  ) : (
-                    <Badge variant="destructive">Eliminated</Badge>
+                  {currentWeekPick.result === "pending" && (
+                    <Dialog open={showPickDialog} onOpenChange={(open) => {
+                      setShowPickDialog(open);
+                      if (!open) {
+                        setSearchQuery("");
+                        setSelectedGolfer(null);
+                        setGolferName("");
+                      }
+                    }}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" data-testid="button-change-pick">
+                          <Flag className="h-4 w-4 mr-2" />
+                          Change Pick
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle>Change Your Pick</DialogTitle>
+                          <DialogDescription>
+                            {fieldData?.eventName ? (
+                              <>Select a different golfer from the {fieldData.eventName} field. Your previous pick of {currentWeekPick.golferName} will become available again.</>
+                            ) : (
+                              <>Choose a different golfer for {currentTournament?.name}. Your previous pick of {currentWeekPick.golferName} will become available again.</>
+                            )}
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        {dataGolfStatus?.configured && fieldData?.golfers ? (
+                          <div className="flex-1 overflow-hidden flex flex-col">
+                            <div className="relative mb-4">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search golfers..."
+                                className="pl-10"
+                                data-testid="input-search-golfer-edit"
+                              />
+                            </div>
+                            
+                            {selectedGolfer && (
+                              <div className="mb-4 p-3 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">{selectedGolfer.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    DG Rank: #{selectedGolfer.dgRank || "N/A"} | OWGR: #{selectedGolfer.owgrRank || "N/A"}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedGolfer(null);
+                                    setGolferName("");
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                            
+                            <ScrollArea className="h-[350px]">
+                              <div className="space-y-1 pr-4">
+                                {fieldLoading ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                  </div>
+                                ) : filteredGolfers.length === 0 ? (
+                                  <p className="text-center text-muted-foreground py-8">No golfers found</p>
+                                ) : (
+                                  filteredGolfers.map((golfer) => {
+                                    const used = isGolferUsed(golfer.name) && golfer.name !== currentWeekPick.golferName;
+                                    const isSelected = selectedGolfer?.dgId === golfer.dgId;
+                                    const isCurrentPick = golfer.name === currentWeekPick.golferName;
+                                    
+                                    return (
+                                      <button
+                                        key={golfer.dgId}
+                                        onClick={() => !used && handleSelectGolfer(golfer)}
+                                        disabled={used}
+                                        className={`w-full text-left p-3 rounded-lg transition-colors flex items-center justify-between gap-2 ${
+                                          isSelected 
+                                            ? "bg-primary/20 border border-primary" 
+                                            : used 
+                                              ? "opacity-50 cursor-not-allowed bg-muted/50" 
+                                              : isCurrentPick
+                                                ? "bg-muted border border-muted-foreground/20"
+                                                : "hover-elevate bg-muted/30"
+                                        }`}
+                                        data-testid={`golfer-edit-${golfer.dgId}`}
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                                            {golfer.dgRank || "-"}
+                                          </div>
+                                          <div>
+                                            <p className="font-medium">{golfer.name}</p>
+                                            <p className="text-xs text-muted-foreground">{golfer.country}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {isCurrentPick && (
+                                            <Badge variant="outline" className="text-xs">Current Pick</Badge>
+                                          )}
+                                          {used && (
+                                            <Badge variant="secondary" className="text-xs">Used</Badge>
+                                          )}
+                                          {golfer.owgrRank && (
+                                            <Badge variant="outline" className="text-xs">
+                                              OWGR #{golfer.owgrRank}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        ) : (
+                          <div className="space-y-4 py-4">
+                            <p className="text-sm text-muted-foreground">Enter the golfer name manually:</p>
+                            <Input
+                              value={golferName}
+                              onChange={(e) => setGolferName(e.target.value)}
+                              placeholder="Enter golfer name"
+                              data-testid="input-golfer-name-edit"
+                            />
+                          </div>
+                        )}
+                        
+                        <DialogFooter>
+                          <Button
+                            onClick={() => handleMakePick(true)}
+                            disabled={(!selectedGolfer && !golferName.trim()) || updatePickMutation.isPending}
+                            data-testid="button-confirm-change-pick"
+                          >
+                            {updatePickMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Updating...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="h-4 w-4 mr-2" />
+                                Change Pick
+                              </>
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   )}
                 </div>
               ) : (
@@ -368,7 +551,7 @@ export default function GolfSurvivorPicks() {
                           Cancel
                         </Button>
                         <Button
-                          onClick={handleMakePick}
+                          onClick={() => handleMakePick(false)}
                           disabled={!golferName || isGolferUsed(golferName) || makePickMutation.isPending}
                           data-testid="button-submit-pick"
                         >

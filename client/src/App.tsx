@@ -22,6 +22,7 @@ import NewGolfPool from "@/pages/golf/NewGolfPool";
 import GolfPoolManager from "@/pages/golf/GolfPoolManager";
 import GolfSurvivorPicks from "@/pages/golf/GolfSurvivorPicks";
 import GolfPoolSignup from "@/pages/golf/GolfPoolSignup";
+import GolfPoolLeaderboard from "@/pages/golf/GolfPoolLeaderboard";
 import UserManagement from "@/pages/UserManagement";
 import NotFound from "@/pages/not-found";
 
@@ -120,6 +121,7 @@ function Router() {
       </Route>
       <Route path="/golf/pool/:poolId/entry/:entryId" component={GolfSurvivorPicks} />
       <Route path="/golf/pool/:poolId/signup" component={GolfPoolSignup} />
+      <Route path="/golf/pool/:poolId/leaderboard" component={GolfPoolLeaderboard} />
       <Route path="/board/:id" component={PublicBoard} />
       <Route path="/pool/:operatorSlug/:contestSlug" component={PublicBoard} />
       <Route path="/my-contests" component={MyContests} />

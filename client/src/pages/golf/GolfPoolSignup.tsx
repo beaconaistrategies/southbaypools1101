@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn, Mail, LogOut, Info } from "lucide-react";
+import { ArrowLeft, Trophy, Users, DollarSign, Calendar, Check, LogIn, Mail, LogOut, Info, BarChart3, Flag, Plus } from "lucide-react";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import type { GolfPoolEntry } from "@shared/schema";
 
 type GolfPoolPublic = {
   id: string;
@@ -58,14 +59,28 @@ export default function GolfPoolSignup() {
     },
   });
 
-  const signupMutation = useMutation({
-    mutationFn: async (data: { entryName: string }) => {
-      return await apiRequest("POST", `/api/participant/golf/pools/${poolId}/signup`, data);
+  const { data: myEntries = [] } = useQuery<GolfPoolEntry[]>({
+    queryKey: ["/api/golf/pools", poolId, "entries/email", participant?.email],
+    queryFn: async () => {
+      if (!participant?.email) return [];
+      const response = await fetch(`/api/golf/pools/${poolId}/entries/email/${encodeURIComponent(participant.email)}`);
+      if (!response.ok) return [];
+      return response.json();
     },
-    onSuccess: () => {
+    enabled: !!participant?.email && !!poolId,
+  });
+
+  const signupMutation = useMutation({
+    mutationFn: async (data: { entryName: string }): Promise<GolfPoolEntry> => {
+      const response = await apiRequest("POST", `/api/participant/golf/pools/${poolId}/signup`, data);
+      return response.json();
+    },
+    onSuccess: (data: GolfPoolEntry) => {
       queryClient.invalidateQueries({ queryKey: ["/api/participant/golf/entries"] });
-      toast({ title: "Welcome to the Pool!", description: "You've successfully signed up." });
-      setLocation("/join");
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId, "entries/email", participant?.email] });
+      toast({ title: "Entry Created!", description: "You've successfully joined the pool." });
+      setEntryName("");
+      setLocation(`/golf/pool/${poolId}/entry/${data.id}`);
     },
     onError: (error: any) => {
       toast({ title: "Signup Failed", description: error.message, variant: "destructive" });
@@ -161,6 +176,15 @@ export default function GolfPoolSignup() {
               </div>
             </div>
 
+            <div className="flex gap-2 mb-4">
+              <Link href={`/golf/pool/${poolId}/leaderboard`} className="flex-1">
+                <Button variant="outline" className="w-full gap-2" data-testid="button-view-leaderboard">
+                  <BarChart3 className="h-4 w-4" />
+                  View Leaderboard
+                </Button>
+              </Link>
+            </div>
+
             {pool.status === "completed" ? (
               <div className="text-center py-4">
                 <Badge variant="secondary" className="mb-2">Registration Closed</Badge>
@@ -205,37 +229,67 @@ export default function GolfPoolSignup() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div>
-                  <Label htmlFor="entryName">Your Entry Name</Label>
-                  <Input
-                    id="entryName"
-                    value={entryName}
-                    onChange={(e) => setEntryName(e.target.value)}
-                    placeholder="e.g., John's Pick, Lucky 7"
-                    data-testid="input-entry-name"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This is how your entry will appear on the leaderboard
-                  </p>
-                </div>
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full gap-2"
-                  disabled={!entryName.trim() || signupMutation.isPending}
-                  data-testid="button-signup"
-                >
-                  {signupMutation.isPending ? (
-                    "Joining..."
-                  ) : (
-                    <>
-                      <Check className="h-5 w-5" />
-                      Join Pool
-                    </>
-                  )}
-                </Button>
-              </form>
+              <div className="space-y-4">
+                {myEntries.length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Your Entries</Label>
+                    {myEntries.map((entry) => (
+                      <Link key={entry.id} href={`/golf/pool/${poolId}/entry/${entry.id}`}>
+                        <div className="flex items-center justify-between p-3 bg-muted rounded-lg cursor-pointer hover-elevate" data-testid={`entry-${entry.id}`}>
+                          <div className="flex items-center gap-3">
+                            <Flag className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{entry.entryName}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {entry.status === "active" ? (
+                              <Badge className="bg-green-600 text-white text-xs">Active</Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">Eliminated</Badge>
+                            )}
+                            <Button variant="ghost" size="sm">
+                              Manage Picks
+                            </Button>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                    <div className="border-t pt-4 mt-4">
+                      <p className="text-sm text-muted-foreground mb-3">Add another entry to this pool:</p>
+                    </div>
+                  </div>
+                )}
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div>
+                    <Label htmlFor="entryName">{myEntries.length > 0 ? "New Entry Name" : "Your Entry Name"}</Label>
+                    <Input
+                      id="entryName"
+                      value={entryName}
+                      onChange={(e) => setEntryName(e.target.value)}
+                      placeholder="e.g., John's Pick, Lucky 7"
+                      data-testid="input-entry-name"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This is how your entry will appear on the leaderboard
+                    </p>
+                  </div>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full gap-2"
+                    disabled={!entryName.trim() || signupMutation.isPending}
+                    data-testid="button-signup"
+                  >
+                    {signupMutation.isPending ? (
+                      "Creating Entry..."
+                    ) : (
+                      <>
+                        {myEntries.length > 0 ? <Plus className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+                        {myEntries.length > 0 ? "Add Another Entry" : "Join Pool"}
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </div>
             )}
           </CardContent>
         </Card>
