@@ -13,12 +13,27 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
   entries: GolfPoolEntry[];
   tournaments: GolfTournament[];
+};
+
+type GolferWithRanking = {
+  name: string;
+  datagolfId: number;
+  country: string;
+  ranking?: number;
+};
+
+type TournamentField = {
+  eventName: string;
+  eventId: string;
+  tour: string;
+  lastUpdated: string;
+  golfers: GolferWithRanking[];
 };
 
 export default function GolfPoolManager() {
@@ -29,6 +44,10 @@ export default function GolfPoolManager() {
   const [showAddEntryDialog, setShowAddEntryDialog] = useState(false);
   const [newEntryName, setNewEntryName] = useState("");
   const [newEntryEmail, setNewEntryEmail] = useState("");
+  const [showMakePickDialog, setShowMakePickDialog] = useState(false);
+  const [selectedEntryForPick, setSelectedEntryForPick] = useState<GolfPoolEntry | null>(null);
+  const [pickSearchQuery, setPickSearchQuery] = useState("");
+  const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
 
   const { data: pool, isLoading } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -104,6 +123,55 @@ export default function GolfPoolManager() {
     },
   });
 
+  const deleteEntryMutation = useMutation({
+    mutationFn: async (entryId: string) => {
+      return await apiRequest("DELETE", `/api/golf/entries/${entryId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Entry Deleted" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const adminPickMutation = useMutation({
+    mutationFn: async ({ entryId, golferName, weekNumber, tournamentName }: { entryId: string; golferName: string; weekNumber: number; tournamentName?: string }) => {
+      return await apiRequest("POST", `/api/golf/entries/${entryId}/admin-pick`, { golferName, weekNumber, tournamentName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Pick Submitted", description: "Pick was made on behalf of the user" });
+      setShowMakePickDialog(false);
+      setSelectedEntryForPick(null);
+      setSelectedGolfer(null);
+      setPickSearchQuery("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { data: fieldData } = useQuery<TournamentField>({
+    queryKey: ["/api/datagolf/field"],
+    queryFn: async () => {
+      const response = await fetch("/api/datagolf/field?tour=pga");
+      if (!response.ok) throw new Error("Failed to fetch field");
+      return response.json();
+    },
+    enabled: showMakePickDialog,
+  });
+
+  const currentTournament = tournaments.find((t) => t.weekNumber === pool?.currentWeek);
+
+  const filteredGolfers = fieldData?.golfers?.filter((g) => {
+    if (!pickSearchQuery) return true;
+    return g.name.toLowerCase().includes(pickSearchQuery.toLowerCase());
+  }) || [];
+
+  const usedGolfersForSelectedEntry = (selectedEntryForPick?.usedGolfers as string[]) || [];
+
   const handleStatusChange = (newStatus: string) => {
     updatePoolMutation.mutate({ status: newStatus as any });
   };
@@ -150,7 +218,6 @@ export default function GolfPoolManager() {
 
   const activeEntries = pool.entries?.filter((e) => e.status === "active") || [];
   const eliminatedEntries = pool.entries?.filter((e) => e.status === "eliminated") || [];
-  const currentTournament = tournaments.find((t) => t.weekNumber === pool.currentWeek);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -406,27 +473,72 @@ export default function GolfPoolManager() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {entry.status === "active" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEliminateEntry(entry.id)}
-                            data-testid={`button-eliminate-${entry.id}`}
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Eliminate
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleReinstateEntry(entry.id)}
-                            data-testid={`button-reinstate-${entry.id}`}
-                          >
-                            <Check className="h-4 w-4 mr-1" />
-                            Reinstate
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {entry.status === "active" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntryForPick(entry);
+                                setShowMakePickDialog(true);
+                              }}
+                              data-testid={`button-make-pick-${entry.id}`}
+                            >
+                              <UserCog className="h-4 w-4 mr-1" />
+                              Make Pick
+                            </Button>
+                          )}
+                          {entry.status === "active" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEliminateEntry(entry.id)}
+                              data-testid={`button-eliminate-${entry.id}`}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Eliminate
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleReinstateEntry(entry.id)}
+                              data-testid={`button-reinstate-${entry.id}`}
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              Reinstate
+                            </Button>
+                          )}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                data-testid={`button-delete-${entry.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{entry.entryName}"? This will permanently remove the entry and all their picks. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteEntryMutation.mutate(entry.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -485,6 +597,104 @@ export default function GolfPoolManager() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Make Pick Dialog */}
+        <Dialog open={showMakePickDialog} onOpenChange={(open) => {
+          setShowMakePickDialog(open);
+          if (!open) {
+            setSelectedEntryForPick(null);
+            setSelectedGolfer(null);
+            setPickSearchQuery("");
+          }
+        }}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Make Pick for {selectedEntryForPick?.entryName}</DialogTitle>
+              <DialogDescription>
+                Select a golfer for Week {pool.currentWeek}
+                {currentTournament && ` - ${currentTournament.name}`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden flex flex-col gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search golfers..."
+                  value={pickSearchQuery}
+                  onChange={(e) => setPickSearchQuery(e.target.value)}
+                  className="pl-10"
+                  data-testid="input-golfer-search"
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto border rounded-md">
+                {filteredGolfers.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    {fieldData ? "No golfers found" : "Loading tournament field..."}
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {filteredGolfers.slice(0, 50).map((golfer) => {
+                      const isUsed = usedGolfersForSelectedEntry.includes(golfer.name);
+                      return (
+                        <div
+                          key={golfer.datagolfId}
+                          className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
+                            isUsed
+                              ? "bg-muted/50 opacity-50 cursor-not-allowed"
+                              : selectedGolfer?.datagolfId === golfer.datagolfId
+                              ? "bg-primary/10"
+                              : "hover:bg-muted/50"
+                          }`}
+                          onClick={() => {
+                            if (!isUsed) {
+                              setSelectedGolfer(golfer);
+                            }
+                          }}
+                          data-testid={`golfer-option-${golfer.datagolfId}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground w-8">
+                              #{golfer.ranking || "—"}
+                            </span>
+                            <span className="font-medium">{golfer.name}</span>
+                            <span className="text-sm text-muted-foreground">{golfer.country}</span>
+                          </div>
+                          {isUsed && (
+                            <Badge variant="secondary">Already Used</Badge>
+                          )}
+                          {selectedGolfer?.datagolfId === golfer.datagolfId && !isUsed && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowMakePickDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedEntryForPick && selectedGolfer && pool.currentWeek) {
+                    adminPickMutation.mutate({
+                      entryId: selectedEntryForPick.id,
+                      golferName: selectedGolfer.name,
+                      weekNumber: pool.currentWeek,
+                      tournamentName: currentTournament?.name,
+                    });
+                  }
+                }}
+                disabled={!selectedGolfer || adminPickMutation.isPending}
+                data-testid="button-confirm-pick"
+              >
+                {adminPickMutation.isPending ? "Submitting..." : "Submit Pick"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

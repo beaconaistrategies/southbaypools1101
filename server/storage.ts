@@ -77,6 +77,7 @@ export interface IStorage {
   getGolfPoolEntriesByPoolAndEmail(poolId: string, email: string): Promise<GolfPoolEntry[]>;
   createGolfPoolEntry(entry: InsertGolfPoolEntry): Promise<GolfPoolEntry>;
   updateGolfPoolEntry(id: string, entry: Partial<GolfPoolEntry>): Promise<GolfPoolEntry | undefined>;
+  deleteGolfPoolEntry(id: string): Promise<void>;
 
   // Golf Pick methods
   getGolfPicks(entryId: string): Promise<GolfPick[]>;
@@ -445,6 +446,13 @@ export class DbStorage implements IStorage {
   async updateGolfPoolEntry(id: string, entry: Partial<GolfPoolEntry>): Promise<GolfPoolEntry | undefined> {
     const result = await db.update(golfPoolEntries).set(entry).where(eq(golfPoolEntries.id, id)).returning();
     return result[0];
+  }
+
+  async deleteGolfPoolEntry(id: string): Promise<void> {
+    // Delete picks first (cascade)
+    await db.delete(golfPicks).where(eq(golfPicks.entryId, id));
+    // Then delete the entry
+    await db.delete(golfPoolEntries).where(eq(golfPoolEntries.id, id));
   }
 
   // Golf Pick methods

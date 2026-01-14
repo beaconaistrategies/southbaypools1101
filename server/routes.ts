@@ -1298,6 +1298,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/golf/entries/:id", isAdmin, async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntry(req.params.id);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      await storage.deleteGolfPoolEntry(req.params.id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting entry:", error);
+      return res.status(500).json({ error: "Failed to delete entry" });
+    }
+  });
+
+  // Admin pick on behalf of user
+  app.post("/api/golf/entries/:entryId/admin-pick", isAdmin, async (req, res) => {
+    try {
+      const { golferName, weekNumber, tournamentName } = req.body;
+      
+      if (!golferName || weekNumber === undefined) {
+        return res.status(400).json({ error: "Golfer name and week number are required" });
+      }
+
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      if (entry.status === "eliminated") {
+        return res.status(400).json({ error: "Entry has been eliminated" });
+      }
+
+      const pool = await storage.getGolfPool(entry.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      // Check if golfer was already used
+      const usedGolfers = (entry.usedGolfers as string[]) || [];
+      if (usedGolfers.includes(golferName)) {
+        return res.status(400).json({ error: "Golfer has already been used" });
+      }
+
+      // Check for existing pick this week
+      const existingPicks = await storage.getGolfPicks(req.params.entryId);
+      const existingPickThisWeek = existingPicks.find(p => p.weekNumber === weekNumber);
+
+      if (existingPickThisWeek) {
+        // Update existing pick
+        const updatedPick = await storage.updateGolfPick(existingPickThisWeek.id, {
+          golferName,
+          tournamentName: tournamentName || null,
+        });
+        
+        // Update used golfers list (remove old, add new)
+        const oldGolfer = existingPickThisWeek.golferName;
+        const newUsedGolfers = usedGolfers.filter(g => g !== oldGolfer);
+        newUsedGolfers.push(golferName);
+        await storage.updateGolfPoolEntry(entry.id, { usedGolfers: newUsedGolfers });
+
+        return res.json(updatedPick);
+      } else {
+        // Create new pick
+        const pick = await storage.createGolfPick({
+          entryId: req.params.entryId,
+          poolId: entry.poolId,
+          weekNumber,
+          golferName,
+          tournamentName: tournamentName || null,
+        });
+
+        // Update used golfers
+        usedGolfers.push(golferName);
+        await storage.updateGolfPoolEntry(entry.id, { usedGolfers });
+
+        return res.json(pick);
+      }
+    } catch (error) {
+      console.error("Error creating admin pick:", error);
+      return res.status(500).json({ error: "Failed to create pick" });
+    }
+  });
+
   // Golf Pick routes
   app.get("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {
