@@ -1912,6 +1912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const entries = await storage.getGolfPoolEntries(pool.id);
       const currentWeek = pool.currentWeek || 1;
       const pickDeadlineHours = pool.pickDeadlineHours || 0;
+      const showPicksOverride = pool.showPicksOverride || false;
       
       // Get current tournament to determine deadline
       const tournaments = await storage.getAllGolfTournaments(pool.season);
@@ -1925,6 +1926,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tournamentStart = new Date(currentTournament.startDate);
         deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
         deadlinePassed = new Date() >= deadlineTime;
+      }
+      
+      // Admin override: if showPicksOverride is true, always show picks
+      if (showPicksOverride) {
+        deadlinePassed = true;
       }
       
       // Get picks for all entries and all weeks

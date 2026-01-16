@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
@@ -576,6 +578,22 @@ export default function GolfPoolManager() {
                 <p className="text-muted-foreground mt-1">{pool.notes}</p>
               </div>
             )}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="space-y-0.5">
+                <Label htmlFor="show-picks-toggle">Show All Picks</Label>
+                <p className="text-sm text-muted-foreground">
+                  Override deadline and show all picks on the leaderboard
+                </p>
+              </div>
+              <Switch
+                id="show-picks-toggle"
+                checked={pool.showPicksOverride || false}
+                onCheckedChange={(checked) => {
+                  updatePoolMutation.mutate({ showPicksOverride: checked });
+                }}
+                data-testid="switch-show-picks"
+              />
+            </div>
             <div className="pt-2 border-t">
               <label className="block text-sm font-medium mb-2">Webhook URL (for pick notifications)</label>
               <div className="flex gap-2">
