@@ -165,6 +165,37 @@ export default function GolfPoolManager() {
     enabled: showMakePickDialog,
   });
 
+  const [showCutCheckDialog, setShowCutCheckDialog] = useState(false);
+  const [cutCheckResults, setCutCheckResults] = useState<{
+    tournamentName: string;
+    currentRound: number;
+    results: {
+      checked: number;
+      eliminated: number;
+      madeCut: number;
+      notFound: number;
+      details: { entryName: string; golferName: string; status: string; action: string }[];
+    };
+  } | null>(null);
+
+  const runCutCheckMutation = useMutation({
+    mutationFn: async (weekNumber: number) => {
+      const response = await apiRequest("POST", `/api/golf/pools/${poolId}/run-cut-check`, { weekNumber });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      setCutCheckResults(data);
+      toast({ 
+        title: "Cut Check Complete", 
+        description: `Checked ${data.results.checked} picks. Eliminated: ${data.results.eliminated}, Survived: ${data.results.madeCut}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const currentTournament = tournaments.find((t) => t.weekNumber === pool?.currentWeek);
 
   const filteredGolfers = fieldData?.golfers?.filter((g) => {
@@ -612,6 +643,117 @@ export default function GolfPoolManager() {
               <p className="text-sm text-muted-foreground mt-1">
                 n8n webhook URL to send pick confirmation emails when participants submit picks
               </p>
+            </div>
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Run Cut Check</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Check DataGolf API and eliminate entries whose picks missed the cut
+                  </p>
+                </div>
+                <Dialog open={showCutCheckDialog} onOpenChange={(open) => {
+                  setShowCutCheckDialog(open);
+                  if (!open) setCutCheckResults(null);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      disabled={!pool.currentWeek}
+                      data-testid="button-run-cut-check"
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Run Cut Check
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>Run Cut Check</DialogTitle>
+                      <DialogDescription>
+                        This will check the DataGolf API for golfer cut status and automatically eliminate entries whose picks missed the cut for Week {pool.currentWeek}.
+                      </DialogDescription>
+                    </DialogHeader>
+                    {cutCheckResults ? (
+                      <div className="space-y-4">
+                        <div className="bg-muted p-4 rounded-lg">
+                          <h4 className="font-medium mb-2">{cutCheckResults.tournamentName} - Round {cutCheckResults.currentRound}</h4>
+                          <div className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                              <p className="text-2xl font-bold text-green-600">{cutCheckResults.results.madeCut}</p>
+                              <p className="text-sm text-muted-foreground">Survived</p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-bold text-red-600">{cutCheckResults.results.eliminated}</p>
+                              <p className="text-sm text-muted-foreground">Eliminated</p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-bold text-yellow-600">{cutCheckResults.results.notFound}</p>
+                              <p className="text-sm text-muted-foreground">Not Found</p>
+                            </div>
+                          </div>
+                        </div>
+                        {cutCheckResults.results.details.length > 0 && (
+                          <div className="max-h-60 overflow-y-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Entry</TableHead>
+                                  <TableHead>Golfer</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {cutCheckResults.results.details.map((detail, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell className="font-medium">{detail.entryName}</TableCell>
+                                    <TableCell>{detail.golferName}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={
+                                        detail.action === "survived" ? "default" : 
+                                        detail.action === "eliminated" ? "destructive" : 
+                                        "secondary"
+                                      }>
+                                        {detail.action}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center">
+                        <p className="text-muted-foreground mb-4">
+                          Run the cut check for Week {pool.currentWeek}?
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          This will fetch live data from DataGolf and update entry statuses.
+                        </p>
+                      </div>
+                    )}
+                    <DialogFooter>
+                      {cutCheckResults ? (
+                        <Button onClick={() => {
+                          setShowCutCheckDialog(false);
+                          setCutCheckResults(null);
+                        }} data-testid="button-close-cut-results">
+                          Close
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={() => runCutCheckMutation.mutate(pool.currentWeek!)}
+                          disabled={runCutCheckMutation.isPending}
+                          data-testid="button-confirm-cut-check"
+                        >
+                          {runCutCheckMutation.isPending ? "Checking..." : "Run Cut Check"}
+                        </Button>
+                      )}
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
           </CardContent>
         </Card>

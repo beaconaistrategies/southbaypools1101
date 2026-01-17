@@ -1382,6 +1382,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to run cut elimination check
+  app.post("/api/golf/pools/:poolId/run-cut-check", isAdmin, async (req, res) => {
+    try {
+      const { weekNumber } = req.body;
+      if (!weekNumber) {
+        return res.status(400).json({ error: "Week number is required" });
+      }
+
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      // Get live tournament data from DataGolf
+      const liveData = await dataGolfService.getLiveTournamentData("pga");
+      if (!liveData) {
+        return res.status(400).json({ error: "No active tournament data available from DataGolf" });
+      }
+
+      // Get all picks for this week
+      const picks = await storage.getGolfPicksForWeek(req.params.poolId, weekNumber);
+      
+      // Create a map of golfer names to their status
+      const golferStatusMap = new Map<string, 'active' | 'cut' | 'wd' | 'dq'>();
+      liveData.players.forEach(player => {
+        golferStatusMap.set(player.name.toLowerCase().trim(), player.status);
+      });
+
+      const results = {
+        checked: 0,
+        eliminated: 0,
+        madeCut: 0,
+        notFound: 0,
+        details: [] as { entryName: string; golferName: string; status: string; action: string }[],
+      };
+
+      for (const pick of picks) {
+        results.checked++;
+        const golferKey = pick.golferName.toLowerCase().trim();
+        const status = golferStatusMap.get(golferKey);
+
+        if (!status) {
+          results.notFound++;
+          results.details.push({
+            entryName: pick.entryName || "Unknown",
+            golferName: pick.golferName,
+            status: "not found",
+            action: "skipped",
+          });
+          continue;
+        }
+
+        if (status === 'cut' || status === 'wd' || status === 'dq') {
+          // Update the pick result to eliminated (missed cut/wd/dq)
+          await storage.updateGolfPick(pick.id, { 
+            result: 'eliminated',
+            updatedAt: new Date(),
+          });
+
+          // Eliminate the entry
+          await storage.updateGolfPoolEntry(pick.entryId, { 
+            status: "eliminated" 
+          });
+
+          results.eliminated++;
+          results.details.push({
+            entryName: pick.entryName || "Unknown",
+            golferName: pick.golferName,
+            status,
+            action: "eliminated",
+          });
+        } else {
+          // Mark as survived (made cut)
+          await storage.updateGolfPick(pick.id, { 
+            result: 'survived',
+            updatedAt: new Date(),
+          });
+
+          results.madeCut++;
+          results.details.push({
+            entryName: pick.entryName || "Unknown",
+            golferName: pick.golferName,
+            status: "active",
+            action: "survived",
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        tournamentName: liveData.eventName,
+        currentRound: liveData.currentRound,
+        lastUpdated: liveData.lastUpdated,
+        results,
+      });
+    } catch (error) {
+      console.error("Error running cut check:", error);
+      return res.status(500).json({ error: "Failed to run cut check" });
+    }
+  });
+
+  // Get live tournament data endpoint
+  app.get("/api/datagolf/live", async (req, res) => {
+    try {
+      const tour = (req.query.tour as string) || "pga";
+      const liveData = await dataGolfService.getLiveTournamentData(tour);
+      
+      if (!liveData) {
+        return res.status(404).json({ error: "No active tournament" });
+      }
+      
+      return res.json(liveData);
+    } catch (error) {
+      console.error("Error fetching live tournament data:", error);
+      return res.status(500).json({ error: "Failed to fetch live data" });
+    }
+  });
+
   // Golf Pick routes
   app.get("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {

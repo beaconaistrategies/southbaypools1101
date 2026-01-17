@@ -29,6 +29,50 @@ interface DataGolfFieldResponse {
   last_updated: string;
 }
 
+interface DataGolfInPlayPlayer {
+  dg_id: number;
+  player_name: string;
+  country: string;
+  current_pos?: string;
+  current_score?: number;
+  total?: number;
+  thru?: number | string;
+  round?: number;
+  status?: string; // 'CUT', 'WD', 'DQ', or undefined for active
+  win?: number;
+  top_5?: number;
+  top_10?: number;
+  top_20?: number;
+  make_cut?: number;
+}
+
+interface DataGolfInPlayResponse {
+  event_name: string;
+  current_round: number;
+  cut_line?: number;
+  last_updated: string;
+  players: DataGolfInPlayPlayer[];
+}
+
+export interface LiveTournamentPlayer {
+  dgId: number;
+  name: string;
+  country: string;
+  position?: string;
+  score?: number;
+  thru?: string;
+  round?: number;
+  status: 'active' | 'cut' | 'wd' | 'dq';
+}
+
+export interface LiveTournamentData {
+  eventName: string;
+  currentRound: number;
+  cutLine?: number;
+  lastUpdated: string;
+  players: LiveTournamentPlayer[];
+}
+
 interface DataGolfRankingsResponse {
   last_updated: string;
   notes: string;
@@ -59,7 +103,9 @@ class DataGolfService {
   private apiKey: string;
   private rankingsCache: Map<string, { data: DataGolfRanking[]; timestamp: number }> = new Map();
   private fieldCache: Map<string, { data: DataGolfFieldResponse; timestamp: number }> = new Map();
+  private inPlayCache: Map<string, { data: DataGolfInPlayResponse; timestamp: number }> = new Map();
   private CACHE_TTL = 1000 * 60 * 15; // 15 minutes
+  private IN_PLAY_CACHE_TTL = 1000 * 60 * 5; // 5 minutes for live data
 
   constructor() {
     this.apiKey = process.env.DATAGOLF_API_KEY || "";
@@ -185,6 +231,105 @@ class DataGolfService {
     return rankings.filter(g => 
       g.name.toLowerCase().includes(lowerQuery)
     ).slice(0, 50);
+  }
+
+  private async fetchInPlay(tour: string = "pga"): Promise<DataGolfInPlayResponse | null> {
+    const cacheKey = `inplay-${tour}`;
+    const cached = this.inPlayCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.IN_PLAY_CACHE_TTL) {
+      return cached.data;
+    }
+
+    try {
+      const url = `${DATAGOLF_BASE_URL}/preds/in-play?tour=${tour}&file_format=json&key=${this.apiKey}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          // No active tournament
+          return null;
+        }
+        throw new Error(`DataGolf API error: ${response.status}`);
+      }
+      
+      const data: DataGolfInPlayResponse = await response.json();
+      this.inPlayCache.set(cacheKey, { data, timestamp: Date.now() });
+      return data;
+    } catch (error) {
+      console.error("Error fetching DataGolf in-play data:", error);
+      const cached = this.inPlayCache.get(cacheKey);
+      if (cached) {
+        return cached.data;
+      }
+      return null;
+    }
+  }
+
+  async getLiveTournamentData(tour: string = "pga"): Promise<LiveTournamentData | null> {
+    const inPlayData = await this.fetchInPlay(tour);
+    
+    if (!inPlayData) {
+      return null;
+    }
+
+    const players: LiveTournamentPlayer[] = inPlayData.players.map(player => {
+      let status: 'active' | 'cut' | 'wd' | 'dq' = 'active';
+      if (player.status === 'CUT' || player.status === 'MC') {
+        status = 'cut';
+      } else if (player.status === 'WD') {
+        status = 'wd';
+      } else if (player.status === 'DQ') {
+        status = 'dq';
+      }
+
+      return {
+        dgId: player.dg_id,
+        name: player.player_name,
+        country: player.country,
+        position: player.current_pos,
+        score: player.current_score,
+        thru: player.thru?.toString(),
+        round: player.round,
+        status,
+      };
+    });
+
+    return {
+      eventName: inPlayData.event_name,
+      currentRound: inPlayData.current_round,
+      cutLine: inPlayData.cut_line,
+      lastUpdated: inPlayData.last_updated,
+      players,
+    };
+  }
+
+  async getPlayerCutStatus(golferName: string, tour: string = "pga"): Promise<'active' | 'cut' | 'wd' | 'dq' | 'unknown'> {
+    const liveData = await this.getLiveTournamentData(tour);
+    
+    if (!liveData) {
+      return 'unknown';
+    }
+
+    // Normalize names for comparison (handle "Last, First" format)
+    const normalizedQuery = golferName.toLowerCase().trim();
+    
+    const player = liveData.players.find(p => {
+      const normalizedName = p.name.toLowerCase().trim();
+      // Try exact match first
+      if (normalizedName === normalizedQuery) return true;
+      // Try partial match (in case of nickname differences)
+      const queryParts = normalizedQuery.split(',').map(s => s.trim());
+      const nameParts = normalizedName.split(',').map(s => s.trim());
+      if (queryParts.length === 2 && nameParts.length === 2) {
+        // Compare last name and first initial
+        return queryParts[0] === nameParts[0] && 
+               (queryParts[1].startsWith(nameParts[1].charAt(0)) || nameParts[1].startsWith(queryParts[1].charAt(0)));
+      }
+      return false;
+    });
+
+    return player?.status || 'unknown';
   }
 
   isConfigured(): boolean {
