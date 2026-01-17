@@ -348,6 +348,7 @@ export const golfPicks = pgTable("golf_picks", {
   isAutoPick: boolean("is_auto_pick").notNull().default(false), // True if system auto-picked
   result: golfPickResultEnum("result").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
   index("golf_picks_entry_idx").on(table.entryId),
   index("golf_picks_pool_week_idx").on(table.poolId, table.weekNumber),
@@ -357,6 +358,7 @@ export const golfPicks = pgTable("golf_picks", {
 export const insertGolfPickSchema = createInsertSchema(golfPicks).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   result: true,
 });
 

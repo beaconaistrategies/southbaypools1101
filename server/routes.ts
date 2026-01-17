@@ -1346,10 +1346,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingPickThisWeek = existingPicks.find(p => p.weekNumber === weekNumber);
 
       if (existingPickThisWeek) {
-        // Update existing pick
+        // Update existing pick (admin can update even after deadline)
         const updatedPick = await storage.updateGolfPick(existingPickThisWeek.id, {
           golferName,
           tournamentName: tournamentName || null,
+          updatedAt: new Date(),
         });
         
         // Update used golfers list (remove old, add new)
@@ -1424,6 +1425,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pool = await storage.getGolfPool(entry.poolId);
       if (!pool) {
         return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      // Check if deadline has passed for this week
+      const pickWeek = req.body.weekNumber;
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === pickWeek);
+      
+      if (weekTournament && weekTournament.startDate) {
+        const tournamentStart = new Date(weekTournament.startDate);
+        const pickDeadlineHours = pool.pickDeadlineHours || 0;
+        const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
+        
+        if (new Date() >= deadlineTime) {
+          return res.status(400).json({ 
+            error: "Pick deadline has passed for this week. Tournament has already started." 
+          });
+        }
       }
       
       // Try to get tournament from internal database, but don't require it
@@ -1840,6 +1858,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pool not found" });
       }
       
+      // Check if deadline has passed for this week
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === weekNum);
+      
+      if (weekTournament && weekTournament.startDate) {
+        const tournamentStart = new Date(weekTournament.startDate);
+        const pickDeadlineHours = pool.pickDeadlineHours || 0;
+        const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
+        
+        if (new Date() >= deadlineTime) {
+          return res.status(400).json({ 
+            error: "Pick deadline has passed for this week. You cannot change your pick after the tournament starts." 
+          });
+        }
+      }
+      
       // Check if there's an existing pick for this week
       const existingPicks = await storage.getGolfPicks(entryId);
       const existingPick = existingPicks.find(p => p.weekNumber === weekNum);
@@ -1868,10 +1902,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Update the pick
+      // Update the pick with updatedAt timestamp
       const updatedPick = await storage.updateGolfPick(existingPick.id, {
         golferName: newGolferName,
         tournamentName: req.body.tournamentName || existingPick.tournamentName,
+        updatedAt: new Date(),
       });
       
       // Send webhook notification for pick update if configured
