@@ -115,14 +115,16 @@ Preferred communication style: Simple, everyday language.
 ## External APIs
 
 **DataGolf API:**
-- Integration for live golf tournament fields and rankings
-- Service located at `server/datagolf.ts` with 15-minute TTL caching
+- Integration for live golf tournament fields, rankings, and live tournament status
+- Service located at `server/datagolf.ts` with 15-minute TTL caching (5-minute for live data)
 - Requires `DATAGOLF_API_KEY` secret
 - Endpoints:
   - `GET /api/datagolf/status` - Check if API is configured
   - `GET /api/datagolf/rankings` - Get world golf rankings
   - `GET /api/datagolf/field?tour=pga` - Get current tournament field
   - `GET /api/datagolf/search?q=name` - Search for golfers
+  - `GET /api/datagolf/live?tour=pga` - Get live tournament leaderboard with player cut status
+- **Cut Elimination**: Uses `/preds/in-play` endpoint to check if golfers made the cut, withdrew, or were disqualified. Statuses: CUT/MC → eliminated, WD → eliminated, DQ → eliminated, active → survived.
 
 ## Recent Changes
 
@@ -139,3 +141,11 @@ Preferred communication style: Simple, everyday language.
 - Added edit pick functionality with "Change Pick" button that uses PUT endpoint
 - Built public leaderboard page (`/golf/pool/:poolId/leaderboard`) showing all entries with tabbed view (all/active/eliminated)
 - Updated signup page to display user's existing entries with manage links and allow adding more entries
+- Added pick deadline enforcement: users cannot submit/change picks after tournament starts (based on pickDeadlineHours)
+- Added updatedAt timestamp tracking on golf_picks for audit trail
+- Admin picks bypass deadline enforcement
+- Added "Run Cut Check" feature in Pool Manager to automatically eliminate entries whose picks missed the cut:
+  - Fetches live tournament data from DataGolf `/preds/in-play` endpoint
+  - Checks each pick against golfer status (CUT/MC, WD, DQ = eliminated; active = survived)
+  - Updates pick.result and entry.status accordingly
+  - Displays detailed results with survived/eliminated/not found counts
