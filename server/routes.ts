@@ -1455,13 +1455,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const pick of picks) {
         results.checked++;
         const golferKey = pick.golferName.toLowerCase().trim();
+        
+        // Try to find status using both original and normalized name formats
         let status = golferStatusMap.get(golferKey);
+        if (!status) {
+          // Try normalized variants of the pick's golfer name
+          const pickVariants = normalizeGolferName(pick.golferName);
+          for (const variant of pickVariants) {
+            status = golferStatusMap.get(variant);
+            if (status) break;
+          }
+        }
+        
         const entryName = entryNameMap.get(pick.entryId) || "Unknown";
+        
+        // Debug logging
+        console.log(`Cut check: golfer="${pick.golferName}", key="${golferKey}", found=${!!status}, round=${liveData.currentRound}`);
 
         // If golfer not found in in-play data and we're past round 2, they missed the cut
         // The in-play endpoint only returns players who made the cut
         if (!status && liveData.currentRound >= 3) {
           status = 'cut';
+          console.log(`Cut check: "${pick.golferName}" not in in-play data (round ${liveData.currentRound}), marking as CUT`);
         }
 
         if (!status) {
