@@ -47,11 +47,18 @@ interface DataGolfInPlayPlayer {
 }
 
 interface DataGolfInPlayResponse {
-  event_name: string;
-  current_round: number;
+  event_name?: string;
+  current_round?: number;
   cut_line?: number;
-  last_updated: string;
-  players: DataGolfInPlayPlayer[];
+  last_updated?: string;
+  players?: DataGolfInPlayPlayer[];
+  data?: DataGolfInPlayPlayer[]; // API may return players in 'data' field
+  info?: {
+    event_name?: string;
+    current_round?: number;
+    cut_line?: number;
+    last_updated?: string;
+  };
 }
 
 export interface LiveTournamentPlayer {
@@ -273,7 +280,14 @@ class DataGolfService {
       return null;
     }
 
-    const players: LiveTournamentPlayer[] = inPlayData.players.map(player => {
+    // Handle case where players array might be undefined or in different field
+    const rawPlayers = inPlayData.players || (inPlayData as any).data || [];
+    if (!Array.isArray(rawPlayers) || rawPlayers.length === 0) {
+      console.warn("DataGolf in-play response has no players data:", Object.keys(inPlayData));
+      return null;
+    }
+
+    const players: LiveTournamentPlayer[] = rawPlayers.map(player => {
       let status: 'active' | 'cut' | 'wd' | 'dq' = 'active';
       if (player.status === 'CUT' || player.status === 'MC') {
         status = 'cut';
@@ -295,11 +309,18 @@ class DataGolfService {
       };
     });
 
+    // Extract metadata from either top-level or info object
+    const info = inPlayData.info || {};
+    const eventName = inPlayData.event_name || info.event_name || "Unknown Tournament";
+    const currentRound = inPlayData.current_round ?? info.current_round ?? 0;
+    const cutLine = inPlayData.cut_line ?? info.cut_line;
+    const lastUpdated = inPlayData.last_updated || info.last_updated || new Date().toISOString();
+
     return {
-      eventName: inPlayData.event_name,
-      currentRound: inPlayData.current_round,
-      cutLine: inPlayData.cut_line,
-      lastUpdated: inPlayData.last_updated,
+      eventName,
+      currentRound,
+      cutLine,
+      lastUpdated,
       players,
     };
   }
