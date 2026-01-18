@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, AlertCircle, Zap } from "lucide-react";
 import type { Prize } from "@shared/schema";
 
@@ -13,9 +14,10 @@ interface PrizesEditorProps {
   readOnly?: boolean;
   preset?: "quarters" | "halves" | "custom";
   layerCount?: number;
+  layerLabels?: string[]; // Layer labels for dropdown
 }
 
-export default function PrizesEditor({ prizes, onUpdate, readOnly = false, preset = "custom", layerCount = 4 }: PrizesEditorProps) {
+export default function PrizesEditor({ prizes, onUpdate, readOnly = false, preset = "custom", layerCount = 4, layerLabels = [] }: PrizesEditorProps) {
   const [localPrizes, setLocalPrizes] = useState<Prize[]>(prizes.length > 0 ? prizes : [
     { label: "Q1", amount: "" },
     { label: "Q2", amount: "" },
@@ -45,6 +47,17 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
     updated[index].amount = value;
     setLocalPrizes(updated);
     onUpdate(updated, false); // labelsChanged = false
+  };
+
+  const handleLayerChange = (index: number, value: string) => {
+    const updated = [...localPrizes];
+    // "auto" means no explicit layer assignment (use legacy label-based detection)
+    updated[index] = { 
+      ...updated[index], 
+      layerIndex: value === "auto" ? undefined : parseInt(value) 
+    };
+    setLocalPrizes(updated);
+    onUpdate(updated, false);
   };
 
   const handleAddRow = () => {
@@ -169,15 +182,18 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
 
       <div className="space-y-3">
         {/* Header Row */}
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 pb-2 border-b">
+        <div className={`grid gap-3 pb-2 border-b ${layerLabels.length > 1 ? 'grid-cols-[1fr_1fr_140px_auto]' : 'grid-cols-[1fr_1fr_auto]'}`}>
           <div className="text-sm font-medium text-muted-foreground">Prize Label</div>
           <div className="text-sm font-medium text-muted-foreground">Amount</div>
+          {layerLabels.length > 1 && (
+            <div className="text-sm font-medium text-muted-foreground">Layer</div>
+          )}
           <div className="w-9"></div>
         </div>
 
         {/* Prize Rows */}
         {localPrizes.map((prize, index) => (
-          <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+          <div key={index} className={`grid gap-3 items-center ${layerLabels.length > 1 ? 'grid-cols-[1fr_1fr_140px_auto]' : 'grid-cols-[1fr_1fr_auto]'}`}>
             <Input
               value={prize.label}
               onChange={(e) => handleLabelChange(index, e.target.value)}
@@ -192,6 +208,25 @@ export default function PrizesEditor({ prizes, onUpdate, readOnly = false, prese
               disabled={readOnly}
               data-testid={`input-prize-amount-${index}`}
             />
+            {layerLabels.length > 1 && (
+              <Select
+                value={prize.layerIndex !== undefined ? String(prize.layerIndex) : "auto"}
+                onValueChange={(value) => handleLayerChange(index, value)}
+                disabled={readOnly}
+              >
+                <SelectTrigger className="h-9" data-testid={`select-prize-layer-${index}`}>
+                  <SelectValue placeholder="Auto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto</SelectItem>
+                  {layerLabels.map((label, i) => (
+                    <SelectItem key={i} value={String(i)}>
+                      {label || `Layer ${i + 1}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {!readOnly && (
               <Button
                 type="button"

@@ -114,6 +114,7 @@ export type Participant = typeof participants.$inferSelect;
 export type Prize = {
   label: string;
   amount: string;
+  layerIndex?: number; // Optional: which layer/game this prize belongs to (0-indexed)
 };
 
 export type Winner = {

@@ -679,6 +679,7 @@ export default function ContestManager() {
                   }
                 );
               }}
+              layerLabels={contest.layerLabels || []}
             />
             
             <Card className="p-6">

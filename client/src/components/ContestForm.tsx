@@ -651,6 +651,7 @@ export default function ContestForm({ initialData, onSubmit, onCancel }: Contest
         }}
         preset={payoutPreset}
         layerCount={redRowsCount}
+        layerLabels={layerLabels}
       />
 
       <Card className="p-6">

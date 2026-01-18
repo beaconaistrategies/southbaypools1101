@@ -28,9 +28,15 @@ function hexToRgb(hex: string): string {
   return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
 }
 
-// Extract game number from a prize label
+// Extract game number from a prize - uses layerIndex if set, otherwise falls back to label matching
 // Supports formats like: "GM 1 Q1", "GM 2 HALF", "GB @ DET Q1", etc.
-function extractGameNumber(label: string, layerLabels: string[]): number {
+function extractGameNumber(prize: Prize, layerLabels: string[]): number {
+  // If layerIndex is explicitly set, use it
+  if (prize.layerIndex !== undefined) {
+    return prize.layerIndex;
+  }
+  
+  const label = prize.label;
   if (!label) return 0;
   
   // Pattern 1: "GM X" format (e.g., "GM 1 Q1", "GM 2 HALF")
@@ -242,7 +248,7 @@ export default function WinnersPanel({
   const prizesByGame: Map<number, Prize[]> = new Map();
   
   prizes.forEach(prize => {
-    const gameNum = extractGameNumber(prize.label, layerLabels);
+    const gameNum = extractGameNumber(prize, layerLabels);
     if (!prizesByGame.has(gameNum)) {
       prizesByGame.set(gameNum, []);
     }
