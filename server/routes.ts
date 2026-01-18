@@ -1404,13 +1404,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all picks for this week
       const picks = await storage.getGolfPicksForWeek(req.params.poolId, weekNumber);
       
-      // Get all entries for this pool to look up entry names
-      const entries = await storage.getGolfPoolEntries(req.params.poolId);
-      const entryNameMap = new Map<string, string>();
-      entries.forEach(entry => {
-        entryNameMap.set(entry.id, entry.entryName);
-      });
-      
       // Create a map of golfer names to their status
       const golferStatusMap = new Map<string, 'active' | 'cut' | 'wd' | 'dq'>();
       liveData.players.forEach(player => {
@@ -1429,12 +1422,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.checked++;
         const golferKey = pick.golferName.toLowerCase().trim();
         const status = golferStatusMap.get(golferKey);
-        const entryName = entryNameMap.get(pick.entryId) || "Unknown";
 
         if (!status) {
           results.notFound++;
           results.details.push({
-            entryName,
+            entryName: pick.entryName || "Unknown",
             golferName: pick.golferName,
             status: "not found",
             action: "skipped",
@@ -1456,7 +1448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           results.eliminated++;
           results.details.push({
-            entryName,
+            entryName: pick.entryName || "Unknown",
             golferName: pick.golferName,
             status,
             action: "eliminated",
@@ -1470,7 +1462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           results.madeCut++;
           results.details.push({
-            entryName,
+            entryName: pick.entryName || "Unknown",
             golferName: pick.golferName,
             status: "active",
             action: "survived",

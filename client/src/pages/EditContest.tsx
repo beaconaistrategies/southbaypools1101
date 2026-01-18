@@ -345,7 +345,6 @@ export default function EditContest() {
               readOnly={false}
               layerLabels={contest.layerLabels || []}
               layerColors={(contest as any).layerColors || []}
-              layerColorGroups={(contest as any).layerColorGroups || []}
               headerColorsEnabled={(contest as any).headerColorsEnabled ?? true}
             />
           </Card>

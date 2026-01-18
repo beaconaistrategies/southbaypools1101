@@ -18,7 +18,6 @@ interface WinnersPanelProps {
   readOnly?: boolean;
   layerLabels?: string[];
   layerColors?: string[];
-  layerColorGroups?: number[];
   headerColorsEnabled?: boolean;
 }
 
@@ -60,7 +59,6 @@ export default function WinnersPanel({
   readOnly = false,
   layerLabels = [],
   layerColors = [],
-  layerColorGroups = [],
   headerColorsEnabled = true
 }: WinnersPanelProps) {
   const handleSquareNumberChange = (prizeLabel: string, value: string) => {
@@ -96,10 +94,7 @@ export default function WinnersPanel({
 
   const getGameColor = (gameIndex: number): string => {
     if (!headerColorsEnabled) return "";
-    const colorGroupIndex = layerColorGroups.length > gameIndex 
-      ? layerColorGroups[gameIndex] 
-      : gameIndex;
-    return layerColors[colorGroupIndex] || defaultColors[colorGroupIndex] || defaultColors[0];
+    return layerColors[gameIndex] || defaultColors[gameIndex] || defaultColors[0];
   };
 
   const getGameHeaderStyle = (gameIndex: number): React.CSSProperties => {

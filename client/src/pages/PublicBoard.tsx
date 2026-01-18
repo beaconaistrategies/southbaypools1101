@@ -286,7 +286,6 @@ export default function PublicBoard() {
                 readOnly={true}
                 layerLabels={contest.layerLabels || []}
                 layerColors={(contest as any).layerColors || []}
-                layerColorGroups={(contest as any).layerColorGroups || []}
                 headerColorsEnabled={(contest as any).headerColorsEnabled ?? true}
               />
             </div>
