@@ -153,6 +153,7 @@ export default function SquareGrid({
     
     const prizeIndex = prizes.findIndex(p => p.label === winner.label);
     const safePrizeIndex = prizeIndex >= 0 ? prizeIndex : 0;
+    const matchedPrize = prizeIndex >= 0 ? prizes[prizeIndex] : null;
     
     // Determine color index by parsing game number from the prize label
     // This handles both "GM X" format and team name format
@@ -161,8 +162,13 @@ export default function SquareGrid({
     
     let colorIndex: number;
     if (isMultiGameBoard) {
-      // Extract game number directly from the prize label
-      colorIndex = extractGameNumber(winner.label);
+      // First check if the prize has an explicit layerIndex set
+      if (matchedPrize && matchedPrize.layerIndex !== undefined) {
+        colorIndex = matchedPrize.layerIndex;
+      } else {
+        // Fall back to extracting game number from the prize label
+        colorIndex = extractGameNumber(winner.label);
+      }
     } else {
       // Single-game: each prize has unique color
       colorIndex = safePrizeIndex;
