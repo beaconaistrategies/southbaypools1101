@@ -286,14 +286,40 @@ class DataGolfService {
       console.warn("DataGolf in-play response has no players data:", Object.keys(inPlayData));
       return null;
     }
+    
+    // Debug: Log first few players to see field structure
+    console.log("DataGolf in-play: Sample players (first 5):", rawPlayers.slice(0, 5).map(p => ({
+      name: p.player_name,
+      current_pos: p.current_pos,
+      status: p.status,
+    })));
+    
+    // Debug: Find any players with CUT/WD/DQ status
+    const cutPlayers = rawPlayers.filter(p => {
+      const pos = (p.current_pos || '').toUpperCase();
+      const stat = (p.status || '').toUpperCase();
+      return pos.includes('CUT') || pos.includes('WD') || pos.includes('DQ') ||
+             stat.includes('CUT') || stat.includes('WD') || stat.includes('DQ');
+    });
+    console.log(`DataGolf in-play: Found ${cutPlayers.length} cut/wd/dq players:`, cutPlayers.slice(0, 5).map(p => ({
+      name: p.player_name,
+      current_pos: p.current_pos,
+      status: p.status,
+    })));
 
     const players: LiveTournamentPlayer[] = rawPlayers.map(player => {
       let status: 'active' | 'cut' | 'wd' | 'dq' = 'active';
-      if (player.status === 'CUT' || player.status === 'MC') {
+      
+      // Check both 'status' field AND 'current_pos' field for cut/wd/dq indicators
+      // The DataGolf website shows "CUT" in the position column (current_pos)
+      const statusField = (player.status || '').toUpperCase();
+      const posField = (player.current_pos || '').toUpperCase();
+      
+      if (statusField === 'CUT' || statusField === 'MC' || posField === 'CUT' || posField === 'MC') {
         status = 'cut';
-      } else if (player.status === 'WD') {
+      } else if (statusField === 'WD' || posField === 'WD') {
         status = 'wd';
-      } else if (player.status === 'DQ') {
+      } else if (statusField === 'DQ' || posField === 'DQ') {
         status = 'dq';
       }
 
