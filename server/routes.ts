@@ -1606,16 +1606,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tournaments = await storage.getAllGolfTournaments(pool.season);
       const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === pickWeek);
       
+      let deadlinePassed = false;
+      
       if (weekTournament && weekTournament.startDate) {
         const tournamentStart = new Date(weekTournament.startDate);
         const pickDeadlineHours = pool.pickDeadlineHours || 0;
         const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
         
         if (new Date() >= deadlineTime) {
-          return res.status(400).json({ 
-            error: "Pick deadline has passed for this week. Tournament has already started." 
-          });
+          deadlinePassed = true;
         }
+      } else {
+        // Fallback: If no internal tournament, check DataGolf API for live tournament
+        // If a tournament is in-play, the deadline has passed
+        const liveData = await dataGolfService.getLiveTournamentData();
+        if (liveData && liveData.currentRound >= 1) {
+          // Tournament is in progress - deadline has passed
+          console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+          deadlinePassed = true;
+        }
+      }
+      
+      if (deadlinePassed) {
+        return res.status(400).json({ 
+          error: "Pick deadline has passed for this week. Tournament has already started." 
+        });
       }
       
       // Try to get tournament from internal database, but don't require it
@@ -2036,16 +2051,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tournaments = await storage.getAllGolfTournaments(pool.season);
       const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === weekNum);
       
+      let deadlinePassed = false;
+      
       if (weekTournament && weekTournament.startDate) {
         const tournamentStart = new Date(weekTournament.startDate);
         const pickDeadlineHours = pool.pickDeadlineHours || 0;
         const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
         
         if (new Date() >= deadlineTime) {
-          return res.status(400).json({ 
-            error: "Pick deadline has passed for this week. You cannot change your pick after the tournament starts." 
-          });
+          deadlinePassed = true;
         }
+      } else {
+        // Fallback: If no internal tournament, check DataGolf API for live tournament
+        // If a tournament is in-play, the deadline has passed
+        const liveData = await dataGolfService.getLiveTournamentData();
+        if (liveData && liveData.currentRound >= 1) {
+          // Tournament is in progress - deadline has passed
+          console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+          deadlinePassed = true;
+        }
+      }
+      
+      if (deadlinePassed) {
+        return res.status(400).json({ 
+          error: "Pick deadline has passed for this week. You cannot change your pick after the tournament starts." 
+        });
       }
       
       // Check if there's an existing pick for this week
