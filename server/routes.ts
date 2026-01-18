@@ -1428,8 +1428,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const pick of picks) {
         results.checked++;
         const golferKey = pick.golferName.toLowerCase().trim();
-        const status = golferStatusMap.get(golferKey);
+        let status = golferStatusMap.get(golferKey);
         const entryName = entryNameMap.get(pick.entryId) || "Unknown";
+
+        // If golfer not found in in-play data and we're past round 2, they missed the cut
+        // The in-play endpoint only returns players who made the cut
+        if (!status && liveData.currentRound >= 3) {
+          status = 'cut';
+        }
 
         if (!status) {
           results.notFound++;

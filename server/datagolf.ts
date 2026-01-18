@@ -350,7 +350,17 @@ class DataGolfService {
       return false;
     });
 
-    return player?.status || 'unknown';
+    if (player) {
+      return player.status;
+    }
+    
+    // If player not found in in-play data and we're past round 2, they likely missed the cut
+    // The in-play endpoint only returns players who made the cut
+    if (liveData.currentRound >= 3) {
+      return 'cut';
+    }
+    
+    return 'unknown';
   }
 
   isConfigured(): boolean {
