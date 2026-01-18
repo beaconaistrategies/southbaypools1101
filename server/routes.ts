@@ -1411,10 +1411,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entryNameMap.set(entry.id, entry.entryName);
       });
       
-      // Create a map of golfer names to their status
+      // Helper to normalize golfer names for comparison
+      // Handles "Last, First" <-> "First Last" conversions
+      const normalizeGolferName = (name: string): string[] => {
+        const normalized = name.toLowerCase().trim();
+        const variants: string[] = [normalized];
+        
+        if (normalized.includes(',')) {
+          // "Last, First" format -> also add "First Last" variant
+          const parts = normalized.split(',').map(s => s.trim());
+          if (parts.length === 2) {
+            variants.push(`${parts[1]} ${parts[0]}`); // "First Last"
+          }
+        } else if (normalized.includes(' ')) {
+          // "First Last" format -> also add "Last, First" variant
+          const parts = normalized.split(' ');
+          if (parts.length >= 2) {
+            const firstName = parts.slice(0, -1).join(' ');
+            const lastName = parts[parts.length - 1];
+            variants.push(`${lastName}, ${firstName}`); // "Last, First"
+          }
+        }
+        return variants;
+      };
+      
+      // Create a map of golfer names to their status (store multiple name variants)
       const golferStatusMap = new Map<string, 'active' | 'cut' | 'wd' | 'dq'>();
       liveData.players.forEach(player => {
-        golferStatusMap.set(player.name.toLowerCase().trim(), player.status);
+        const variants = normalizeGolferName(player.name);
+        variants.forEach(variant => {
+          golferStatusMap.set(variant, player.status);
+        });
       });
 
       const results = {
