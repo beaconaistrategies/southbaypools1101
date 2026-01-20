@@ -1556,6 +1556,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Auto-detect current week based on DataGolf live tournament
+  app.get("/api/golf/pools/:poolId/current-week", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      // Get tournaments for this pool's season
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      
+      // Try to get current live tournament from DataGolf
+      const liveData = await dataGolfService.getLiveTournamentData();
+      
+      let detectedWeek = pool.currentWeek || 1;
+      let tournamentName = null;
+      let detectionMethod = "pool_setting";
+      
+      if (liveData && liveData.eventName) {
+        tournamentName = liveData.eventName;
+        
+        // Try to find matching tournament in our database by name
+        const matchingTournament = tournaments.find(t => {
+          const dbName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const liveName = liveData.eventName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return dbName.includes(liveName) || liveName.includes(dbName) || 
+                 dbName.split(' ').some((word: string) => word.length > 3 && liveName.includes(word));
+        });
+        
+        if (matchingTournament && matchingTournament.weekNumber) {
+          detectedWeek = matchingTournament.weekNumber;
+          detectionMethod = "tournament_match";
+        } else {
+          // No match in our DB - try to find based on date
+          const now = new Date();
+          const currentTournament = tournaments.find(t => {
+            const start = new Date(t.startDate);
+            const end = new Date(t.endDate);
+            // Add some buffer (tournament week runs from start to end + 1 day)
+            end.setDate(end.getDate() + 1);
+            return now >= start && now <= end;
+          });
+          
+          if (currentTournament && currentTournament.weekNumber) {
+            detectedWeek = currentTournament.weekNumber;
+            detectionMethod = "date_range";
+          } else {
+            // Find the next upcoming tournament
+            const upcomingTournament = tournaments
+              .filter(t => t.weekNumber && new Date(t.startDate) > now)
+              .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+            
+            if (upcomingTournament && upcomingTournament.weekNumber) {
+              detectedWeek = upcomingTournament.weekNumber;
+              detectionMethod = "next_upcoming";
+            }
+          }
+        }
+      } else {
+        // No live tournament - check if we're between tournaments
+        const now = new Date();
+        const pastTournaments = tournaments
+          .filter(t => t.weekNumber && new Date(t.endDate) < now)
+          .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+        
+        if (pastTournaments.length > 0 && pastTournaments[0].weekNumber) {
+          // Set to the week after the most recent completed tournament
+          detectedWeek = pastTournaments[0].weekNumber + 1;
+          detectionMethod = "after_completed";
+        }
+      }
+      
+      return res.json({
+        currentWeek: detectedWeek,
+        tournamentName,
+        detectionMethod,
+        poolCurrentWeek: pool.currentWeek,
+      });
+    } catch (error) {
+      console.error("Error detecting current week:", error);
+      return res.status(500).json({ error: "Failed to detect current week" });
+    }
+  });
+
   // Golf Pick routes
   app.get("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {
