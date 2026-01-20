@@ -81,8 +81,6 @@ export default function GolfSurvivorPicks() {
   });
 
   const entry = entryData || pool?.entries?.find((e) => e.id === entryId);
-  // currentTournament will be recalculated after autoWeekData is available
-  const currentTournament = tournaments.find((t) => t.weekNumber === (autoWeekData?.currentWeek ?? pool?.currentWeek));
   const usedGolfers = (entry?.usedGolfers as string[]) || [];
   
   const { data: picks = [] } = useQuery<GolfPick[]>({
@@ -124,6 +122,7 @@ export default function GolfSurvivorPicks() {
 
   // Use auto-detected week, fallback to pool.currentWeek
   const currentWeek = autoWeekData?.currentWeek ?? pool?.currentWeek ?? 1;
+  const currentTournament = tournaments.find((t) => t.weekNumber === currentWeek);
   const currentWeekPick = picks.find((p) => p.weekNumber === currentWeek);
 
   const filteredGolfers = useMemo(() => {
