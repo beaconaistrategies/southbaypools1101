@@ -1556,7 +1556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-detect current week based on DataGolf live tournament
+  // Auto-detect current week based on DataGolf field/live tournament
   app.get("/api/golf/pools/:poolId/current-week", async (req, res) => {
     try {
       const pool = await storage.getGolfPool(req.params.poolId);
@@ -1567,55 +1567,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get tournaments for this pool's season
       const tournaments = await storage.getAllGolfTournaments(pool.season);
       
-      // Try to get current live tournament from DataGolf
+      // Try to get current tournament from DataGolf field endpoint (most reliable for current week)
+      const fieldData = await dataGolfService.getCurrentField();
+      // Also get live data as backup
       const liveData = await dataGolfService.getLiveTournamentData();
       
+      // Use field data first (shows current week's tournament), fall back to live
+      const currentEventName = fieldData?.eventName || liveData?.eventName;
+      
       let detectedWeek = pool.currentWeek || 1;
-      let tournamentName = null;
+      let tournamentName = currentEventName || null;
       let detectionMethod = "pool_setting";
       
-      if (liveData && liveData.eventName) {
-        tournamentName = liveData.eventName;
+      if (currentEventName) {
+        // First, check if this tournament matches any existing picks to determine week
+        // Get all picks for this pool to see what tournaments have been used
+        const entries = await storage.getGolfPoolEntries(pool.id);
+        const picksByWeek = new Map<number, string>();
         
-        // Try to find matching tournament in our database by name
-        const matchingTournament = tournaments.find(t => {
-          const dbName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const liveName = liveData.eventName.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return dbName.includes(liveName) || liveName.includes(dbName) || 
-                 dbName.split(' ').some((word: string) => word.length > 3 && liveName.includes(word));
-        });
+        for (const entry of entries) {
+          const picks = await storage.getGolfPicks(entry.id);
+          for (const pick of picks) {
+            if (pick.tournamentName) {
+              picksByWeek.set(pick.weekNumber, pick.tournamentName);
+            }
+          }
+        }
         
-        if (matchingTournament && matchingTournament.weekNumber) {
-          detectedWeek = matchingTournament.weekNumber;
-          detectionMethod = "tournament_match";
+        // Check if current tournament was already picked in a previous week
+        const normalizedCurrentName = currentEventName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let matchedWeek: number | null = null;
+        
+        const pickEntries = Array.from(picksByWeek.entries());
+        for (const [week, tourneyName] of pickEntries) {
+          const normalizedPickedName = tourneyName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (normalizedCurrentName.includes(normalizedPickedName) || 
+              normalizedPickedName.includes(normalizedCurrentName) ||
+              normalizedCurrentName === normalizedPickedName) {
+            matchedWeek = week;
+            break;
+          }
+        }
+        
+        if (matchedWeek !== null) {
+          // Current tournament matches an existing pick week - that's the current week
+          detectedWeek = matchedWeek;
+          detectionMethod = "pick_history_match";
+        } else if (picksByWeek.size > 0) {
+          // Current tournament is NEW (not picked yet) - this is the next week
+          const maxPickedWeek = Math.max(...Array.from(picksByWeek.keys()));
+          detectedWeek = maxPickedWeek + 1;
+          detectionMethod = "next_after_picks";
         } else {
-          // No match in our DB - try to find based on date
-          const now = new Date();
-          const currentTournament = tournaments.find(t => {
-            const start = new Date(t.startDate);
-            const end = new Date(t.endDate);
-            // Add some buffer (tournament week runs from start to end + 1 day)
-            end.setDate(end.getDate() + 1);
-            return now >= start && now <= end;
+          // No picks yet - try to find matching tournament in our database by name
+          const matchingTournament = tournaments.find(t => {
+            const dbName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const liveName = currentEventName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return dbName.includes(liveName) || liveName.includes(dbName) || 
+                   dbName.split(' ').some((word: string) => word.length > 3 && liveName.includes(word));
           });
           
-          if (currentTournament && currentTournament.weekNumber) {
-            detectedWeek = currentTournament.weekNumber;
-            detectionMethod = "date_range";
+          if (matchingTournament && matchingTournament.weekNumber) {
+            detectedWeek = matchingTournament.weekNumber;
+            detectionMethod = "tournament_match";
           } else {
-            // Find the next upcoming tournament
-            const upcomingTournament = tournaments
-              .filter(t => t.weekNumber && new Date(t.startDate) > now)
-              .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+            // No match in our DB - try to find based on date
+            const now = new Date();
+            const currentTournament = tournaments.find(t => {
+              const start = new Date(t.startDate);
+              const end = new Date(t.endDate);
+              // Add some buffer (tournament week runs from start to end + 1 day)
+              end.setDate(end.getDate() + 1);
+              return now >= start && now <= end;
+            });
             
-            if (upcomingTournament && upcomingTournament.weekNumber) {
-              detectedWeek = upcomingTournament.weekNumber;
-              detectionMethod = "next_upcoming";
+            if (currentTournament && currentTournament.weekNumber) {
+              detectedWeek = currentTournament.weekNumber;
+              detectionMethod = "date_range";
+            } else {
+              // Find the next upcoming tournament
+              const upcomingTournament = tournaments
+                .filter(t => t.weekNumber && new Date(t.startDate) > now)
+                .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
+              
+              if (upcomingTournament && upcomingTournament.weekNumber) {
+                detectedWeek = upcomingTournament.weekNumber;
+                detectionMethod = "next_upcoming";
+              }
             }
           }
         }
       } else {
-        // No live tournament - check if we're between tournaments
+        // No tournament data - check if we're between tournaments
         const now = new Date();
         const pastTournaments = tournaments
           .filter(t => t.weekNumber && new Date(t.endDate) < now)
