@@ -81,7 +81,8 @@ export default function GolfSurvivorPicks() {
   });
 
   const entry = entryData || pool?.entries?.find((e) => e.id === entryId);
-  const currentTournament = tournaments.find((t) => t.weekNumber === pool?.currentWeek);
+  // currentTournament will be recalculated after autoWeekData is available
+  const currentTournament = tournaments.find((t) => t.weekNumber === (autoWeekData?.currentWeek ?? pool?.currentWeek));
   const usedGolfers = (entry?.usedGolfers as string[]) || [];
   
   const { data: picks = [] } = useQuery<GolfPick[]>({
@@ -109,7 +110,21 @@ export default function GolfSurvivorPicks() {
     retry: false,
   });
 
-  const currentWeekPick = picks.find((p) => p.weekNumber === pool?.currentWeek);
+  // Auto-detect current week from DataGolf API
+  const { data: autoWeekData } = useQuery<{ currentWeek: number; tournamentName: string | null; detectionMethod: string }>({
+    queryKey: ["/api/golf/pools", poolId, "current-week"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/current-week`);
+      if (!response.ok) throw new Error("Failed to detect current week");
+      return response.json();
+    },
+    enabled: !!poolId,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  // Use auto-detected week, fallback to pool.currentWeek
+  const currentWeek = autoWeekData?.currentWeek ?? pool?.currentWeek ?? 1;
+  const currentWeekPick = picks.find((p) => p.weekNumber === currentWeek);
 
   const filteredGolfers = useMemo(() => {
     if (!fieldData?.golfers) return [];
@@ -160,21 +175,21 @@ export default function GolfSurvivorPicks() {
 
   const handleMakePick = (isEdit: boolean = false) => {
     const nameToSubmit = selectedGolfer?.name || golferName.trim();
-    if (nameToSubmit && pool?.currentWeek) {
-      const tournamentName = currentTournament?.name || fieldData?.eventName || `Week ${pool.currentWeek}`;
+    if (nameToSubmit && currentWeek) {
+      const tournamentName = currentTournament?.name || fieldData?.eventName || `Week ${currentWeek}`;
       
       if (isEdit && currentWeekPick) {
         updatePickMutation.mutate({
           golferName: nameToSubmit,
           tournamentName: tournamentName,
-          weekNumber: pool.currentWeek,
+          weekNumber: currentWeek,
         });
       } else {
         makePickMutation.mutate({
           golferName: nameToSubmit,
           tournamentId: currentTournament?.id,
           tournamentName: tournamentName,
-          weekNumber: pool.currentWeek,
+          weekNumber: currentWeek,
         });
       }
     }
@@ -241,7 +256,7 @@ export default function GolfSurvivorPicks() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                Week {pool.currentWeek}: {fieldData?.eventName || currentTournament?.name || "No tournament"}
+                Week {currentWeek}: {fieldData?.eventName || currentTournament?.name || "No tournament"}
               </CardTitle>
               {currentTournament && (
                 <CardDescription>
