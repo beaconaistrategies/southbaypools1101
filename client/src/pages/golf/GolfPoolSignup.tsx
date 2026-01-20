@@ -70,6 +70,21 @@ export default function GolfPoolSignup() {
     enabled: !!participant?.email && !!poolId,
   });
 
+  // Auto-detect current week from DataGolf API
+  const { data: autoWeekData } = useQuery<{ currentWeek: number; tournamentName: string | null }>({
+    queryKey: ["/api/golf/pools", poolId, "current-week"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/current-week`);
+      if (!response.ok) throw new Error("Failed to detect current week");
+      return response.json();
+    },
+    enabled: !!poolId,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  // Use auto-detected week, fallback to pool.currentWeek
+  const currentWeek = autoWeekData?.currentWeek ?? pool?.currentWeek ?? 1;
+
   const signupMutation = useMutation({
     mutationFn: async (data: { entryName: string }): Promise<GolfPoolEntry> => {
       const response = await apiRequest("POST", `/api/participant/golf/pools/${poolId}/signup`, data);
@@ -171,7 +186,7 @@ export default function GolfPoolSignup() {
               </div>
               <div>
                 <Calendar className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                <p className="text-lg font-semibold">Week {pool.currentWeek}</p>
+                <p className="text-lg font-semibold">Week {currentWeek}</p>
                 <p className="text-xs text-muted-foreground">Current</p>
               </div>
             </div>
