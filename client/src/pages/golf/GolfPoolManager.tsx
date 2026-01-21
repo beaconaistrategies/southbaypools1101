@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -420,13 +420,23 @@ export default function GolfPoolManager() {
                 Manage participants in this survivor pool
               </CardDescription>
             </div>
-            <Dialog open={showAddEntryDialog} onOpenChange={setShowAddEntryDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm" data-testid="button-add-entry">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Entry
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(`/api/golf/pools/${poolId}/export-csv`, '_blank')}
+                data-testid="button-export-csv"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Dialog open={showAddEntryDialog} onOpenChange={setShowAddEntryDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm" data-testid="button-add-entry">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Entry
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Add Entry</DialogTitle>
@@ -469,6 +479,7 @@ export default function GolfPoolManager() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            </div>
           </CardHeader>
           <CardContent>
             {pool.entries?.length === 0 ? (

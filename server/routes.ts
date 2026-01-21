@@ -1249,6 +1249,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Export golf pool entries as CSV
+  app.get("/api/golf/pools/:poolId/export-csv", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      const entries = await storage.getGolfPoolEntries(req.params.poolId);
+      
+      const csvRows = [];
+      csvRows.push("Entry Name,Email,Status,Created At");
+      
+      for (const entry of entries) {
+        const createdAt = entry.createdAt ? new Date(entry.createdAt).toISOString() : "";
+        csvRows.push(
+          `"${(entry.entryName || "").replace(/"/g, '""')}","${(entry.email || "").replace(/"/g, '""')}","${entry.status}","${createdAt}"`
+        );
+      }
+
+      const csv = csvRows.join("\n");
+      
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="golf-pool-${pool.slug || pool.id}-entries.csv"`);
+      res.send(csv);
+    } catch (error) {
+      console.error("Error exporting golf pool entries:", error);
+      return res.status(500).json({ error: "Failed to export entries" });
+    }
+  });
+
   app.post("/api/golf/pools/:poolId/entries", isAdmin, async (req, res) => {
     try {
       const pool = await storage.getGolfPool(req.params.poolId);
