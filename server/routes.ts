@@ -2292,6 +2292,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const tournamentStart = new Date(currentTournament.startDate);
         deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
         deadlinePassed = new Date() >= deadlineTime;
+      } else {
+        // No internal tournament data - calculate deadline as next Thursday 8AM PST
+        // PGA tournaments typically start Thursday morning
+        const now = new Date();
+        const pstOffset = -8 * 60; // PST is UTC-8
+        
+        // Find the next Thursday (or current day if already Thursday before 8AM PST)
+        const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 4 = Thursday
+        let daysUntilThursday = (4 - dayOfWeek + 7) % 7;
+        
+        // If today is Thursday, check if we're past 8AM PST
+        if (daysUntilThursday === 0) {
+          const pstHour = now.getUTCHours() + (pstOffset / 60);
+          if (pstHour >= 8) {
+            // Already past Thursday 8AM PST, deadline has passed for this week
+            deadlinePassed = true;
+          }
+        }
+        
+        if (!deadlinePassed) {
+          // Calculate Thursday 8AM PST
+          const thursday = new Date(now);
+          thursday.setUTCDate(now.getUTCDate() + daysUntilThursday);
+          thursday.setUTCHours(16, 0, 0, 0); // 8AM PST = 16:00 UTC
+          deadlineTime = thursday;
+          deadlinePassed = now >= deadlineTime;
+        }
       }
       
       // Admin override: if showPicksOverride is true, always show picks
