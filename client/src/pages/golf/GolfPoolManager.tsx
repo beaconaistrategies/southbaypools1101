@@ -321,6 +321,15 @@ export default function GolfPoolManager() {
               >
                 <ExternalLink className="h-4 w-4" />
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setLocation(`/golf/pool/${poolId}/leaderboard`)}
+                data-testid="button-view-leaderboard"
+              >
+                <Trophy className="h-4 w-4 mr-2" />
+                View Leaderboard
+              </Button>
               <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" data-testid="button-delete-pool">
