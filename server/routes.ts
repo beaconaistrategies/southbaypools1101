@@ -1775,12 +1775,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deadlinePassed = true;
         }
       } else {
-        // Fallback: If no internal tournament, check DataGolf API for live tournament
-        // If a tournament is in-play, the deadline has passed
+        // Fallback: If no internal tournament, check DataGolf API
+        // Compare field endpoint (upcoming) vs live endpoint (current/finishing)
+        // Only mark deadline passed if the FIELD tournament has started
+        const fieldData = await dataGolfService.getCurrentField();
         const liveData = await dataGolfService.getLiveTournamentData();
-        if (liveData && liveData.currentRound >= 1) {
-          // Tournament is in progress - deadline has passed
-          console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+        
+        if (fieldData && liveData) {
+          // If field and live show the SAME tournament and it has started, deadline passed
+          const fieldTournament = fieldData.eventName?.toLowerCase().trim();
+          const liveTournament = liveData.eventName?.toLowerCase().trim();
+          
+          if (fieldTournament === liveTournament && liveData.currentRound >= 1) {
+            // The upcoming tournament has started - deadline has passed
+            console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+            deadlinePassed = true;
+          } else {
+            // Field and live show different tournaments - the new week hasn't started yet
+            console.log(`Pick deadline check: Field="${fieldData.eventName}", Live="${liveData.eventName}" - different tournaments, deadline NOT passed`);
+          }
+        } else if (liveData && liveData.currentRound >= 1 && !fieldData) {
+          // No field data but live shows a tournament in progress
+          console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed (no field data)`);
           deadlinePassed = true;
         }
       }
@@ -2220,12 +2236,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           deadlinePassed = true;
         }
       } else {
-        // Fallback: If no internal tournament, check DataGolf API for live tournament
-        // If a tournament is in-play, the deadline has passed
+        // Fallback: If no internal tournament, check DataGolf API
+        // Compare field endpoint (upcoming) vs live endpoint (current/finishing)
+        const fieldData = await dataGolfService.getCurrentField();
         const liveData = await dataGolfService.getLiveTournamentData();
-        if (liveData && liveData.currentRound >= 1) {
-          // Tournament is in progress - deadline has passed
-          console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+        
+        if (fieldData && liveData) {
+          // If field and live show the SAME tournament and it has started, deadline passed
+          const fieldTournament = fieldData.eventName?.toLowerCase().trim();
+          const liveTournament = liveData.eventName?.toLowerCase().trim();
+          
+          if (fieldTournament === liveTournament && liveData.currentRound >= 1) {
+            console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
+            deadlinePassed = true;
+          } else {
+            console.log(`Pick change deadline check: Field="${fieldData.eventName}", Live="${liveData.eventName}" - different tournaments, deadline NOT passed`);
+          }
+        } else if (liveData && liveData.currentRound >= 1 && !fieldData) {
+          console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed (no field data)`);
           deadlinePassed = true;
         }
       }

@@ -149,3 +149,7 @@ Preferred communication style: Simple, everyday language.
   - Checks each pick against golfer status (CUT/MC, WD, DQ = eliminated; active = survived)
   - Updates pick.result and entry.status accordingly
   - Displays detailed results with survived/eliminated/not found counts
+- Fixed pick deadline detection to compare DataGolf **field** endpoint (upcoming tournament) vs **live** endpoint (current/finishing tournament):
+  - Deadline only passes when field and live show the SAME tournament AND that tournament has started
+  - Prevents false deadline triggers from stale "live" data of finishing tournaments
+- Added CSV export for golf pool entries (`/api/golf/pools/:poolId/export-csv`) with Download button in Pool Manager
