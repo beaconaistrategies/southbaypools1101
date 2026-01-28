@@ -2339,42 +2339,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pickDeadlineHours = pool.pickDeadlineHours || 0;
       const showPicksOverride = pool.showPicksOverride || false;
       
-      // Get current tournament to determine deadline
+      // Get current tournament to determine deadline - use DataGolf for real-time status
       const tournaments = await storage.getAllGolfTournaments(pool.season);
       const currentTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === currentWeek);
       
       // Calculate if deadline has passed for current week
       let deadlinePassed = false;
       let deadlineTime: Date | null = null;
+      let weekToMask = currentWeek; // Which week's picks should be hidden
       
-      if (currentTournament && currentTournament.startDate) {
+      // Check DataGolf for the actual tournament status
+      const fieldData = await dataGolfService.getCurrentField();
+      const liveData = await dataGolfService.getLiveTournamentData();
+      
+      if (fieldData && liveData) {
+        const fieldTournament = fieldData.eventName?.toLowerCase().trim();
+        const liveTournament = liveData.eventName?.toLowerCase().trim();
+        
+        // Determine which week we should be masking
+        // Find picks that match the FIELD tournament name (upcoming tournament)
+        const allPicks = await Promise.all(
+          entries.map(entry => storage.getGolfPicks(entry.id))
+        );
+        const flatPicks = allPicks.flat();
+        
+        // Find a pick that matches the field tournament to determine its week
+        const fieldMatchingPick = flatPicks.find(p => 
+          p.tournamentName?.toLowerCase().trim() === fieldTournament
+        );
+        if (fieldMatchingPick) {
+          weekToMask = fieldMatchingPick.weekNumber;
+        } else {
+          // No pick matches field - check if any pick matches live tournament
+          const liveMatchingPick = flatPicks.find(p => 
+            p.tournamentName?.toLowerCase().trim() === liveTournament
+          );
+          if (liveMatchingPick && fieldTournament !== liveTournament) {
+            // Live tournament has a pick, field is next - mask the next week
+            weekToMask = liveMatchingPick.weekNumber + 1;
+          } else if (fieldTournament !== liveTournament) {
+            // Field differs from live, but no matching picks found
+            // Mask currentWeek + 1 (the upcoming week)
+            weekToMask = currentWeek + 1;
+          }
+        }
+        
+        if (fieldTournament === liveTournament && liveData.currentRound >= 1) {
+          // The field tournament has started - deadline has passed
+          deadlinePassed = true;
+          console.log(`Leaderboard: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed for week ${weekToMask}`);
+        } else {
+          // Field and live show different tournaments - deadline hasn't passed for the new week
+          console.log(`Leaderboard: Field="${fieldData.eventName}", Live="${liveData.eventName}" - deadline NOT passed, masking week ${weekToMask}`);
+          // Calculate next Thursday 8AM PST as the deadline
+          const now = new Date();
+          const dayOfWeek = now.getUTCDay();
+          let daysUntilThursday = (4 - dayOfWeek + 7) % 7;
+          if (daysUntilThursday === 0) {
+            const pstHour = now.getUTCHours() - 8;
+            if (pstHour >= 8) {
+              daysUntilThursday = 7; // Next Thursday
+            }
+          }
+          const thursday = new Date(now);
+          thursday.setUTCDate(now.getUTCDate() + daysUntilThursday);
+          thursday.setUTCHours(16, 0, 0, 0); // 8AM PST = 16:00 UTC
+          deadlineTime = thursday;
+        }
+      } else if (currentTournament && currentTournament.startDate) {
         const tournamentStart = new Date(currentTournament.startDate);
         deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
         deadlinePassed = new Date() >= deadlineTime;
       } else {
-        // No internal tournament data - calculate deadline as next Thursday 8AM PST
-        // PGA tournaments typically start Thursday morning
+        // No DataGolf or internal tournament data - calculate deadline as next Thursday 8AM PST
         const now = new Date();
-        const pstOffset = -8 * 60; // PST is UTC-8
-        
-        // Find the next Thursday (or current day if already Thursday before 8AM PST)
-        const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 4 = Thursday
+        const dayOfWeek = now.getUTCDay();
         let daysUntilThursday = (4 - dayOfWeek + 7) % 7;
         
-        // If today is Thursday, check if we're past 8AM PST
         if (daysUntilThursday === 0) {
-          const pstHour = now.getUTCHours() + (pstOffset / 60);
+          const pstHour = now.getUTCHours() - 8;
           if (pstHour >= 8) {
-            // Already past Thursday 8AM PST, deadline has passed for this week
             deadlinePassed = true;
           }
         }
         
         if (!deadlinePassed) {
-          // Calculate Thursday 8AM PST
           const thursday = new Date(now);
           thursday.setUTCDate(now.getUTCDate() + daysUntilThursday);
-          thursday.setUTCHours(16, 0, 0, 0); // 8AM PST = 16:00 UTC
+          thursday.setUTCHours(16, 0, 0, 0);
           deadlineTime = thursday;
           deadlinePassed = now >= deadlineTime;
         }
@@ -2390,10 +2442,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entries.map(async (entry) => {
           const picks = await storage.getGolfPicks(entry.id);
           
-          // Mask current week picks if deadline hasn't passed
+          // Mask picks for the week that hasn't started yet
           const maskedPicks = picks.map(pick => {
-            const isCurrentWeek = pick.weekNumber === currentWeek;
-            const shouldMask = isCurrentWeek && !deadlinePassed;
+            const isWeekToMask = pick.weekNumber === weekToMask;
+            const shouldMask = isWeekToMask && !deadlinePassed;
             
             return {
               id: pick.id,
