@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -187,6 +187,40 @@ export default function GolfPoolManager() {
       return response.json();
     },
     enabled: showAllPicksDialog,
+  });
+
+  const { data: autoWeekData, refetch: refetchAutoWeek } = useQuery<{ 
+    currentWeek: number; 
+    tournamentName: string | null;
+    detectionMethod: string;
+    poolCurrentWeek: number;
+  }>({
+    queryKey: ["/api/golf/pools", poolId, "current-week"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/current-week`);
+      if (!response.ok) throw new Error("Failed to detect current week");
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const syncWeekMutation = useMutation({
+    mutationFn: async () => {
+      if (!autoWeekData) throw new Error("No week data available");
+      return await apiRequest("PATCH", `/api/golf/pools/${poolId}`, { 
+        currentWeek: autoWeekData.currentWeek 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ 
+        title: "Week Synced", 
+        description: `Current week updated to Week ${autoWeekData?.currentWeek}${autoWeekData?.tournamentName ? ` (${autoWeekData.tournamentName})` : ''}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   const [showCutCheckDialog, setShowCutCheckDialog] = useState(false);
@@ -407,7 +441,7 @@ export default function GolfPoolManager() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Current Week</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <Select value={pool.currentWeek?.toString()} onValueChange={handleWeekChange}>
                 <SelectTrigger data-testid="select-current-week">
                   <SelectValue />
@@ -423,6 +457,24 @@ export default function GolfPoolManager() {
                   })}
                 </SelectContent>
               </Select>
+              {autoWeekData && autoWeekData.currentWeek !== pool.currentWeek && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3" />
+                  DataGolf suggests Week {autoWeekData.currentWeek}
+                  {autoWeekData.tournamentName && ` (${autoWeekData.tournamentName})`}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => syncWeekMutation.mutate()}
+                disabled={syncWeekMutation.isPending || !autoWeekData || autoWeekData.currentWeek === pool.currentWeek}
+                data-testid="button-sync-week"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncWeekMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncWeekMutation.isPending ? "Syncing..." : "Sync with Tournament"}
+              </Button>
             </CardContent>
           </Card>
 
