@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -38,6 +38,19 @@ type TournamentField = {
   golfers: GolferWithRanking[];
 };
 
+type PickWithTimestamp = {
+  id: string;
+  entryId: string;
+  weekNumber: number;
+  golferName: string;
+  tournamentName: string | null;
+  result: string;
+  createdAt: string;
+  updatedAt: string;
+  entryName: string;
+  entryEmail: string;
+};
+
 export default function GolfPoolManager() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -50,6 +63,7 @@ export default function GolfPoolManager() {
   const [selectedEntryForPick, setSelectedEntryForPick] = useState<GolfPoolEntry | null>(null);
   const [pickSearchQuery, setPickSearchQuery] = useState("");
   const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
+  const [showAllPicksDialog, setShowAllPicksDialog] = useState(false);
 
   const { data: pool, isLoading } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -163,6 +177,16 @@ export default function GolfPoolManager() {
       return response.json();
     },
     enabled: showMakePickDialog,
+  });
+
+  const { data: allPicks = [], refetch: refetchAllPicks } = useQuery<PickWithTimestamp[]>({
+    queryKey: ["/api/golf/pools", poolId, "all-picks"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/all-picks`);
+      if (!response.ok) throw new Error("Failed to fetch picks");
+      return response.json();
+    },
+    enabled: showAllPicksDialog,
   });
 
   const [showCutCheckDialog, setShowCutCheckDialog] = useState(false);
@@ -430,6 +454,15 @@ export default function GolfPoolManager() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllPicksDialog(true)}
+                data-testid="button-view-pick-history"
+              >
+                <History className="h-4 w-4 mr-2" />
+                Pick History
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -871,6 +904,80 @@ export default function GolfPoolManager() {
                 data-testid="button-confirm-pick"
               >
                 {adminPickMutation.isPending ? "Submitting..." : "Submit Pick"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAllPicksDialog} onOpenChange={setShowAllPicksDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Pick History
+              </DialogTitle>
+              <DialogDescription>
+                All picks sorted by most recent activity. Use this to verify pick timestamps.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {allPicks.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No picks have been made yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Week</TableHead>
+                      <TableHead>Golfer</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Last Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allPicks.map((pick) => (
+                      <TableRow key={pick.id} data-testid={`row-pick-${pick.id}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{pick.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>Week {pick.weekNumber}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.golferName}</div>
+                            {pick.tournamentName && (
+                              <div className="text-xs text-muted-foreground">{pick.tournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {format(new Date(pick.createdAt), "MMM d, h:mm a")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {format(new Date(pick.updatedAt), "MMM d, h:mm a")}
+                            {pick.updatedAt !== pick.createdAt && (
+                              <Badge variant="outline" className="ml-1 text-xs">edited</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAllPicksDialog(false)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>

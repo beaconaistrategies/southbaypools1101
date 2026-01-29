@@ -1736,6 +1736,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint: Get all picks for a pool with timestamps and entry names
+  app.get("/api/golf/pools/:poolId/all-picks", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const entries = await storage.getGolfPoolEntries(req.params.poolId);
+      const allPicks = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          allPicks.push({
+            ...pick,
+            entryName: entry.entryName,
+            entryEmail: entry.email,
+          });
+        }
+      }
+      
+      // Sort by updatedAt descending (most recent first)
+      allPicks.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
+      
+      return res.json(allPicks);
+    } catch (error) {
+      console.error("Error fetching all picks:", error);
+      return res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
   app.post("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {
       const entry = await storage.getGolfPoolEntry(req.params.entryId);
