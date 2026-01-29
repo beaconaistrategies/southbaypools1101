@@ -80,6 +80,7 @@ export interface IStorage {
   deleteGolfPoolEntry(id: string): Promise<void>;
 
   // Golf Pick methods
+  getGolfPick(id: string): Promise<GolfPick | undefined>;
   getGolfPicks(entryId: string): Promise<GolfPick[]>;
   getGolfPicksForWeek(poolId: string, weekNumber: number): Promise<GolfPick[]>;
   createGolfPick(pick: InsertGolfPick): Promise<GolfPick>;
@@ -456,6 +457,11 @@ export class DbStorage implements IStorage {
   }
 
   // Golf Pick methods
+  async getGolfPick(id: string): Promise<GolfPick | undefined> {
+    const result = await db.select().from(golfPicks).where(eq(golfPicks.id, id)).limit(1);
+    return result[0];
+  }
+
   async getGolfPicks(entryId: string): Promise<GolfPick[]> {
     return await db.select().from(golfPicks).where(eq(golfPicks.entryId, entryId)).orderBy(asc(golfPicks.weekNumber));
   }

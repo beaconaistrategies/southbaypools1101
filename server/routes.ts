@@ -1772,6 +1772,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Detect mismatched picks (tournament name doesn't match expected week)
+  app.get("/api/golf/pools/:poolId/mismatched-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      // Build tournament name -> week mapping
+      const tournamentToWeek = new Map<string, number>();
+      for (const t of tournaments) {
+        if (t.weekNumber && t.name) {
+          const normalizedName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          tournamentToWeek.set(normalizedName, t.weekNumber);
+        }
+      }
+      
+      const mismatchedPicks: Array<{
+        pickId: string;
+        entryId: string;
+        entryName: string;
+        entryEmail: string;
+        golferName: string;
+        savedWeekNumber: number;
+        tournamentName: string;
+        suggestedWeekNumber: number | null;
+        createdAt: string;
+        updatedAt: string;
+      }> = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          if (!pick.tournamentName) continue;
+          
+          const normalizedPickTournament = pick.tournamentName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Find matching tournament by name
+          let suggestedWeek: number | null = null;
+          const tournamentEntries = Array.from(tournamentToWeek.entries());
+          for (const [normalizedTournament, week] of tournamentEntries) {
+            if (normalizedPickTournament.includes(normalizedTournament) ||
+                normalizedTournament.includes(normalizedPickTournament)) {
+              suggestedWeek = week;
+              break;
+            }
+          }
+          
+          // If tournament name suggests a different week than what's saved
+          if (suggestedWeek !== null && suggestedWeek !== pick.weekNumber) {
+            mismatchedPicks.push({
+              pickId: pick.id,
+              entryId: entry.id,
+              entryName: entry.entryName,
+              entryEmail: entry.email,
+              golferName: pick.golferName,
+              savedWeekNumber: pick.weekNumber,
+              tournamentName: pick.tournamentName,
+              suggestedWeekNumber: suggestedWeek,
+              createdAt: pick.createdAt?.toISOString() || '',
+              updatedAt: pick.updatedAt?.toISOString() || '',
+            });
+          }
+        }
+      }
+      
+      return res.json(mismatchedPicks);
+    } catch (error) {
+      console.error("Error detecting mismatched picks:", error);
+      return res.status(500).json({ error: "Failed to detect mismatched picks" });
+    }
+  });
+
+  // Fix a mismatched pick by updating its week number
+  app.post("/api/golf/picks/:pickId/fix-week", async (req, res) => {
+    try {
+      const { newWeekNumber } = req.body;
+      if (!newWeekNumber || typeof newWeekNumber !== 'number') {
+        return res.status(400).json({ error: "newWeekNumber is required" });
+      }
+      
+      const pick = await storage.getGolfPick(req.params.pickId);
+      if (!pick) {
+        return res.status(404).json({ error: "Pick not found" });
+      }
+      
+      // Update the pick's week number
+      const updatedPick = await storage.updateGolfPick(pick.id, {
+        weekNumber: newWeekNumber,
+      });
+      
+      return res.json(updatedPick);
+    } catch (error) {
+      console.error("Error fixing pick week:", error);
+      return res.status(500).json({ error: "Failed to fix pick week" });
+    }
+  });
+
   app.post("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {
       const entry = await storage.getGolfPoolEntry(req.params.entryId);

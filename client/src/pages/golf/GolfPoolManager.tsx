@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -64,6 +64,7 @@ export default function GolfPoolManager() {
   const [pickSearchQuery, setPickSearchQuery] = useState("");
   const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
   const [showAllPicksDialog, setShowAllPicksDialog] = useState(false);
+  const [showMismatchedPicksDialog, setShowMismatchedPicksDialog] = useState(false);
 
   const { data: pool, isLoading } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -217,6 +218,43 @@ export default function GolfPoolManager() {
         title: "Week Synced", 
         description: `Current week updated to Week ${autoWeekData?.currentWeek}${autoWeekData?.tournamentName ? ` (${autoWeekData.tournamentName})` : ''}` 
       });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  type MismatchedPick = {
+    pickId: string;
+    entryId: string;
+    entryName: string;
+    entryEmail: string;
+    golferName: string;
+    savedWeekNumber: number;
+    tournamentName: string;
+    suggestedWeekNumber: number | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+
+  const { data: mismatchedPicks = [], refetch: refetchMismatchedPicks } = useQuery<MismatchedPick[]>({
+    queryKey: ["/api/golf/pools", poolId, "mismatched-picks"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/mismatched-picks`);
+      if (!response.ok) throw new Error("Failed to fetch mismatched picks");
+      return response.json();
+    },
+    enabled: showMismatchedPicksDialog,
+  });
+
+  const fixPickWeekMutation = useMutation({
+    mutationFn: async ({ pickId, newWeekNumber }: { pickId: string; newWeekNumber: number }) => {
+      return await apiRequest("POST", `/api/golf/picks/${pickId}/fix-week`, { newWeekNumber });
+    },
+    onSuccess: () => {
+      refetchMismatchedPicks();
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Pick Fixed", description: "Week number updated successfully" });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -514,6 +552,15 @@ export default function GolfPoolManager() {
               >
                 <History className="h-4 w-4 mr-2" />
                 Pick History
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMismatchedPicksDialog(true)}
+                data-testid="button-fix-mismatched-picks"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Fix Mismatched Picks
               </Button>
               <Button
                 variant="outline"
@@ -1029,6 +1076,87 @@ export default function GolfPoolManager() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAllPicksDialog(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showMismatchedPicksDialog} onOpenChange={setShowMismatchedPicksDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Mismatched Picks
+              </DialogTitle>
+              <DialogDescription>
+                Picks where the tournament name suggests a different week than what's saved. 
+                These may be picks that were made when the pool week was out of sync.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {mismatchedPicks.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No mismatched picks found. All picks appear to be correctly assigned.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Golfer</TableHead>
+                      <TableHead>Tournament</TableHead>
+                      <TableHead>Saved Week</TableHead>
+                      <TableHead>Should Be</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mismatchedPicks.map((pick) => (
+                      <TableRow key={pick.pickId} data-testid={`row-mismatch-${pick.pickId}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{pick.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{pick.golferName}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{pick.tournamentName}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-amber-600">
+                            Week {pick.savedWeekNumber}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="default">
+                            Week {pick.suggestedWeekNumber}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => fixPickWeekMutation.mutate({ 
+                              pickId: pick.pickId, 
+                              newWeekNumber: pick.suggestedWeekNumber! 
+                            })}
+                            disabled={fixPickWeekMutation.isPending}
+                            data-testid={`button-fix-${pick.pickId}`}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Fix
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowMismatchedPicksDialog(false)}>
                 Close
               </Button>
             </DialogFooter>
