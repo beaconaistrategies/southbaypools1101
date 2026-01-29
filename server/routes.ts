@@ -1851,7 +1851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fix a mismatched pick by updating its week number
   app.post("/api/golf/picks/:pickId/fix-week", async (req, res) => {
     try {
-      const { newWeekNumber } = req.body;
+      const { newWeekNumber, newTournamentName } = req.body;
       if (!newWeekNumber || typeof newWeekNumber !== 'number') {
         return res.status(400).json({ error: "newWeekNumber is required" });
       }
@@ -1861,15 +1861,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pick not found" });
       }
       
-      // Update the pick's week number
-      const updatedPick = await storage.updateGolfPick(pick.id, {
-        weekNumber: newWeekNumber,
-      });
+      // Update the pick's week number and optionally tournament name
+      const updateData: any = { weekNumber: newWeekNumber };
+      if (newTournamentName) {
+        updateData.tournamentName = newTournamentName;
+      }
+      
+      const updatedPick = await storage.updateGolfPick(pick.id, updateData);
       
       return res.json(updatedPick);
     } catch (error) {
       console.error("Error fixing pick week:", error);
       return res.status(500).json({ error: "Failed to fix pick week" });
+    }
+  });
+
+  // Detect picks edited after their tournament ended (likely meant for next week)
+  app.get("/api/golf/pools/:poolId/late-edited-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      const lateEditedPicks: Array<{
+        pickId: string;
+        entryId: string;
+        entryName: string;
+        entryEmail: string;
+        golferName: string;
+        savedWeekNumber: number;
+        tournamentName: string | null;
+        suggestedWeekNumber: number;
+        suggestedTournamentName: string | null;
+        createdAt: string;
+        updatedAt: string;
+        tournamentEndDate: string | null;
+      }> = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          if (!pick.updatedAt || !pick.createdAt) continue;
+          
+          // Find the tournament for this week
+          const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === pick.weekNumber);
+          if (!weekTournament || !weekTournament.endDate) continue;
+          
+          const tournamentEnd = new Date(weekTournament.endDate);
+          const pickUpdated = new Date(pick.updatedAt);
+          const pickCreated = new Date(pick.createdAt);
+          
+          // If pick was edited after tournament ended, it's likely meant for the next week
+          if (pickUpdated > tournamentEnd && pickUpdated.getTime() !== pickCreated.getTime()) {
+            // Find the next tournament
+            const nextTournament = tournaments.find((t: { weekNumber: number | null }) => 
+              t.weekNumber === pick.weekNumber + 1
+            );
+            
+            lateEditedPicks.push({
+              pickId: pick.id,
+              entryId: entry.id,
+              entryName: entry.entryName,
+              entryEmail: entry.email,
+              golferName: pick.golferName,
+              savedWeekNumber: pick.weekNumber,
+              tournamentName: pick.tournamentName,
+              suggestedWeekNumber: pick.weekNumber + 1,
+              suggestedTournamentName: nextTournament?.name || null,
+              createdAt: pick.createdAt.toISOString(),
+              updatedAt: pick.updatedAt.toISOString(),
+              tournamentEndDate: tournamentEnd.toISOString(),
+            });
+          }
+        }
+      }
+      
+      return res.json(lateEditedPicks);
+    } catch (error) {
+      console.error("Error detecting late-edited picks:", error);
+      return res.status(500).json({ error: "Failed to detect late-edited picks" });
+    }
+  });
+
+  // Bulk fix late-edited picks
+  app.post("/api/golf/pools/:poolId/fix-late-edited-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const { picks } = req.body;
+      if (!Array.isArray(picks)) {
+        return res.status(400).json({ error: "picks array is required" });
+      }
+      
+      const results = [];
+      for (const pickData of picks) {
+        const { pickId, newWeekNumber, newTournamentName } = pickData;
+        const pick = await storage.getGolfPick(pickId);
+        if (pick) {
+          const updateData: any = { weekNumber: newWeekNumber };
+          if (newTournamentName) {
+            updateData.tournamentName = newTournamentName;
+          }
+          await storage.updateGolfPick(pickId, updateData);
+          results.push({ pickId, success: true });
+        } else {
+          results.push({ pickId, success: false, error: "Pick not found" });
+        }
+      }
+      
+      return res.json({ fixed: results.filter(r => r.success).length, results });
+    } catch (error) {
+      console.error("Error bulk fixing picks:", error);
+      return res.status(500).json({ error: "Failed to bulk fix picks" });
     }
   });
 
