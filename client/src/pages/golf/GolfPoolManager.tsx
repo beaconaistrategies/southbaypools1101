@@ -66,6 +66,10 @@ export default function GolfPoolManager() {
   const [showAllPicksDialog, setShowAllPicksDialog] = useState(false);
   const [showMismatchedPicksDialog, setShowMismatchedPicksDialog] = useState(false);
   const [showLateEditedPicksDialog, setShowLateEditedPicksDialog] = useState(false);
+  const [showPickHistoryDialog, setShowPickHistoryDialog] = useState(false);
+  const [showResetGolferDialog, setShowResetGolferDialog] = useState(false);
+  const [selectedEntryForReset, setSelectedEntryForReset] = useState<GolfPoolEntry | null>(null);
+  const [golferToReset, setGolferToReset] = useState<string>("");
 
   const { data: pool, isLoading } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -302,6 +306,42 @@ export default function GolfPoolManager() {
       refetchLateEditedPicks();
       queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
       toast({ title: "Picks Fixed", description: `${data.fixed} picks updated to the correct week` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  type PickHistoryItem = {
+    id: string;
+    pickId: string;
+    entryId: string;
+    poolId: string;
+    weekNumber: number;
+    golferName: string;
+    tournamentName: string | null;
+    changedAt: string;
+    changedBy: string | null;
+    reason: string | null;
+    entryName: string;
+    entryEmail: string;
+  };
+
+  const { data: pickHistory = [], isLoading: isLoadingPickHistory } = useQuery<PickHistoryItem[]>({
+    queryKey: [`/api/golf/pools/${poolId}/pick-history`],
+    enabled: showPickHistoryDialog,
+  });
+
+  const resetGolferMutation = useMutation({
+    mutationFn: async ({ entryId, golferName }: { entryId: string; golferName: string }) => {
+      return await apiRequest("POST", `/api/golf/entries/${entryId}/reset-golfer`, { golferName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Golfer Reset", description: "Golfer is now eligible to be picked again" });
+      setShowResetGolferDialog(false);
+      setSelectedEntryForReset(null);
+      setGolferToReset("");
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -595,10 +635,19 @@ export default function GolfPoolManager() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllPicksDialog(true)}
+                data-testid="button-view-all-picks"
+              >
+                <History className="h-4 w-4 mr-2" />
+                All Picks
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPickHistoryDialog(true)}
                 data-testid="button-view-pick-history"
               >
                 <History className="h-4 w-4 mr-2" />
-                Pick History
+                Change History
               </Button>
               <Button
                 variant="outline"
@@ -718,6 +767,21 @@ export default function GolfPoolManager() {
                             >
                               <UserCog className="h-4 w-4 mr-1" />
                               Make Pick
+                            </Button>
+                          )}
+                          {((entry.usedGolfers as string[]) || []).length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntryForReset(entry);
+                                setGolferToReset("");
+                                setShowResetGolferDialog(true);
+                              }}
+                              data-testid={`button-reset-golfer-${entry.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reset Golfer
                             </Button>
                           )}
                           {entry.status === "active" ? (
@@ -1060,10 +1124,10 @@ export default function GolfPoolManager() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <History className="h-5 w-5" />
-                Pick History
+                All Current Picks
               </DialogTitle>
               <DialogDescription>
-                All picks sorted by most recent activity. Use this to verify pick timestamps.
+                All current picks sorted by most recent activity. Admin can see all picks regardless of deadline.
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto">
@@ -1299,6 +1363,130 @@ export default function GolfPoolManager() {
               )}
               <Button variant="outline" onClick={() => setShowLateEditedPicksDialog(false)}>
                 Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showPickHistoryDialog} onOpenChange={setShowPickHistoryDialog}>
+          <DialogContent className="max-w-5xl max-h-[80vh] overflow-hidden flex flex-col" data-testid="dialog-pick-change-history">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Pick Change History
+              </DialogTitle>
+              <DialogDescription>
+                Audit trail of all pick changes. Shows the original pick before each change.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {isLoadingPickHistory ? (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-loading-history">
+                  Loading pick history...
+                </div>
+              ) : pickHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-history">
+                  No pick changes recorded yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Week</TableHead>
+                      <TableHead>Original Pick</TableHead>
+                      <TableHead>Changed By</TableHead>
+                      <TableHead>Changed At</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pickHistory.map((item) => (
+                      <TableRow key={item.id} data-testid={`row-history-${item.id}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{item.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{item.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>Week {item.weekNumber}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{item.golferName}</div>
+                            {item.tournamentName && (
+                              <div className="text-xs text-muted-foreground">{item.tournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={item.changedBy === "admin" ? "default" : "outline"}>
+                            {item.changedBy || "unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {format(new Date(item.changedAt), "MMM d, h:mm a")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground max-w-[200px] truncate">
+                            {item.reason || "-"}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPickHistoryDialog(false)} data-testid="button-close-history">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showResetGolferDialog} onOpenChange={setShowResetGolferDialog}>
+          <DialogContent className="max-w-md" data-testid="dialog-reset-golfer">
+            <DialogHeader>
+              <DialogTitle>Reset Used Golfer</DialogTitle>
+              <DialogDescription>
+                Make a golfer eligible to be picked again for {selectedEntryForReset?.entryName || "this entry"}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label>Select Golfer to Reset</Label>
+              <Select value={golferToReset} onValueChange={setGolferToReset}>
+                <SelectTrigger className="mt-2" data-testid="select-golfer-to-reset">
+                  <SelectValue placeholder="Choose a golfer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {((selectedEntryForReset?.usedGolfers as string[]) || []).map((golfer) => (
+                    <SelectItem key={golfer} value={golfer} data-testid={`select-golfer-${golfer.replace(/\s+/g, '-')}`}>
+                      {golfer}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-2">
+                This will remove the golfer from the "used" list, allowing the participant to pick them again.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowResetGolferDialog(false)} data-testid="button-cancel-reset">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedEntryForReset && golferToReset) {
+                    resetGolferMutation.mutate({ entryId: selectedEntryForReset.id, golferName: golferToReset });
+                  }
+                }}
+                disabled={!golferToReset || resetGolferMutation.isPending}
+                data-testid="button-confirm-reset-golfer"
+              >
+                {resetGolferMutation.isPending ? "Resetting..." : "Reset Golfer"}
               </Button>
             </DialogFooter>
           </DialogContent>

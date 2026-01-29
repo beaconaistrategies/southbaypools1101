@@ -368,6 +368,32 @@ export const insertGolfPickSchema = createInsertSchema(golfPicks).omit({
 export type InsertGolfPick = z.infer<typeof insertGolfPickSchema>;
 export type GolfPick = typeof golfPicks.$inferSelect;
 
+// Golf Pick History - Audit trail for pick changes
+export const golfPickHistory = pgTable("golf_pick_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pickId: varchar("pick_id").notNull().references(() => golfPicks.id, { onDelete: "cascade" }),
+  entryId: varchar("entry_id").notNull().references(() => golfPoolEntries.id, { onDelete: "cascade" }),
+  poolId: varchar("pool_id").notNull().references(() => golfPools.id, { onDelete: "cascade" }),
+  weekNumber: integer("week_number").notNull(),
+  golferName: text("golfer_name").notNull(), // The golfer that was originally picked
+  tournamentName: text("tournament_name"),
+  changedAt: timestamp("changed_at").notNull().default(sql`now()`), // When the pick was changed
+  changedBy: text("changed_by"), // Who changed it: "user", "admin", "system"
+  reason: text("reason"), // Optional reason for the change
+}, (table) => [
+  index("golf_pick_history_pick_idx").on(table.pickId),
+  index("golf_pick_history_entry_idx").on(table.entryId),
+  index("golf_pick_history_pool_week_idx").on(table.poolId, table.weekNumber),
+]);
+
+export const insertGolfPickHistorySchema = createInsertSchema(golfPickHistory).omit({
+  id: true,
+  changedAt: true,
+});
+
+export type InsertGolfPickHistory = z.infer<typeof insertGolfPickHistorySchema>;
+export type GolfPickHistory = typeof golfPickHistory.$inferSelect;
+
 // ==========================================
 // SQUARE TEMPLATES SCHEMA
 // ==========================================

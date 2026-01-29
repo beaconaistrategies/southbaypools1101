@@ -1377,6 +1377,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingPickThisWeek = existingPicks.find(p => p.weekNumber === weekNumber);
 
       if (existingPickThisWeek) {
+        // Save to history before admin update
+        const oldGolfer = existingPickThisWeek.golferName;
+        if (oldGolfer !== golferName) {
+          await storage.createGolfPickHistory({
+            pickId: existingPickThisWeek.id,
+            entryId: existingPickThisWeek.entryId,
+            poolId: existingPickThisWeek.poolId,
+            weekNumber: existingPickThisWeek.weekNumber,
+            golferName: oldGolfer,
+            tournamentName: existingPickThisWeek.tournamentName,
+            changedBy: "admin",
+            reason: `Admin changed from ${oldGolfer} to ${golferName}`,
+          });
+        }
+        
         // Update existing pick (admin can update even after deadline)
         const updatedPick = await storage.updateGolfPick(existingPickThisWeek.id, {
           golferName,
@@ -1385,7 +1400,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Update used golfers list (remove old, add new)
-        const oldGolfer = existingPickThisWeek.golferName;
         const newUsedGolfers = usedGolfers.filter(g => g !== oldGolfer);
         newUsedGolfers.push(golferName);
         await storage.updateGolfPoolEntry(entry.id, { usedGolfers: newUsedGolfers });
@@ -1410,6 +1424,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating admin pick:", error);
       return res.status(500).json({ error: "Failed to create pick" });
+    }
+  });
+
+  // Admin: Override used golfer status (remove golfer from usedGolfers list)
+  app.post("/api/golf/entries/:entryId/reset-golfer", isAdmin, async (req, res) => {
+    try {
+      const { golferName } = req.body;
+      
+      if (!golferName) {
+        return res.status(400).json({ error: "Golfer name is required" });
+      }
+
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      const usedGolfers = (entry.usedGolfers as string[]) || [];
+      
+      if (!usedGolfers.includes(golferName)) {
+        return res.status(400).json({ error: "Golfer is not in the used list" });
+      }
+
+      // Remove the golfer from the used list
+      const newUsedGolfers = usedGolfers.filter(g => g !== golferName);
+      await storage.updateGolfPoolEntry(entry.id, { usedGolfers: newUsedGolfers });
+
+      res.json({ 
+        success: true, 
+        message: `${golferName} has been made eligible again`,
+        usedGolfers: newUsedGolfers 
+      });
+    } catch (error) {
+      console.error("Error resetting golfer:", error);
+      res.status(500).json({ error: "Failed to reset golfer" });
+    }
+  });
+
+  // Admin: Get pick history for an entry
+  app.get("/api/golf/entries/:entryId/pick-history", isAdmin, async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      const history = await storage.getGolfPickHistoryForEntry(req.params.entryId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching pick history:", error);
+      res.status(500).json({ error: "Failed to fetch pick history" });
+    }
+  });
+
+  // Admin: Get all pick history for a pool
+  app.get("/api/golf/pools/:poolId/pick-history", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      // Get all pick history for all entries in this pool
+      const allHistory = await Promise.all(
+        entries.map(async (entry) => {
+          const history = await storage.getGolfPickHistoryForEntry(entry.id);
+          return history.map(h => ({
+            ...h,
+            entryName: entry.entryName,
+            entryEmail: entry.email,
+          }));
+        })
+      );
+
+      // Flatten and sort by changedAt descending
+      const flatHistory = allHistory.flat().sort((a, b) => 
+        new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+      );
+
+      res.json(flatHistory);
+    } catch (error) {
+      console.error("Error fetching pool pick history:", error);
+      res.status(500).json({ error: "Failed to fetch pick history" });
     }
   });
 
@@ -1861,6 +1960,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pick not found" });
       }
       
+      // Save history before fix
+      await storage.createGolfPickHistory({
+        pickId: pick.id,
+        entryId: pick.entryId,
+        poolId: pick.poolId,
+        weekNumber: pick.weekNumber,
+        golferName: pick.golferName,
+        tournamentName: pick.tournamentName,
+        changedBy: "system",
+        reason: `Admin fix: Week ${pick.weekNumber} -> ${newWeekNumber}`,
+      });
+      
       // Update the pick's week number and optionally tournament name
       const updateData: any = { weekNumber: newWeekNumber };
       if (newTournamentName) {
@@ -1965,6 +2076,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { pickId, newWeekNumber, newTournamentName } = pickData;
         const pick = await storage.getGolfPick(pickId);
         if (pick) {
+          // Save history before bulk fix
+          await storage.createGolfPickHistory({
+            pickId: pick.id,
+            entryId: pick.entryId,
+            poolId: pick.poolId,
+            weekNumber: pick.weekNumber,
+            golferName: pick.golferName,
+            tournamentName: pick.tournamentName,
+            changedBy: "system",
+            reason: `Bulk fix: Week ${pick.weekNumber} -> ${newWeekNumber}`,
+          });
+          
           const updateData: any = { weekNumber: newWeekNumber };
           if (newTournamentName) {
             updateData.tournamentName = newTournamentName;
@@ -2531,6 +2654,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (usedExcludingCurrent.includes(newGolferName)) {
           return res.status(400).json({ error: "This golfer has already been used" });
         }
+        
+        // Save original pick to history before updating
+        await storage.createGolfPickHistory({
+          pickId: existingPick.id,
+          entryId: existingPick.entryId,
+          poolId: existingPick.poolId,
+          weekNumber: existingPick.weekNumber,
+          golferName: oldGolferName,
+          tournamentName: existingPick.tournamentName,
+          changedBy: "user",
+          reason: `Changed from ${oldGolferName} to ${newGolferName}`,
+        });
         
         // Update the used golfers list
         const newUsedGolfers = [...usedExcludingCurrent, newGolferName];
