@@ -6,6 +6,7 @@ import { z } from "zod";
 import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
+import { getCurrentWeekFromSchedule, hasDeadlinePassed, getDeadlineForWeek, getTournamentForWeek } from "./schedule";
 
 // Helper to get operatorId from authenticated request
 async function getOperatorId(req: Request): Promise<string | null> {
@@ -1377,6 +1378,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingPickThisWeek = existingPicks.find(p => p.weekNumber === weekNumber);
 
       if (existingPickThisWeek) {
+        // Save to history before admin update
+        const oldGolfer = existingPickThisWeek.golferName;
+        if (oldGolfer !== golferName) {
+          await storage.createGolfPickHistory({
+            pickId: existingPickThisWeek.id,
+            entryId: existingPickThisWeek.entryId,
+            poolId: existingPickThisWeek.poolId,
+            weekNumber: existingPickThisWeek.weekNumber,
+            golferName: oldGolfer,
+            tournamentName: existingPickThisWeek.tournamentName,
+            changedBy: "admin",
+            reason: `Admin changed from ${oldGolfer} to ${golferName}`,
+          });
+        }
+        
         // Update existing pick (admin can update even after deadline)
         const updatedPick = await storage.updateGolfPick(existingPickThisWeek.id, {
           golferName,
@@ -1385,7 +1401,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Update used golfers list (remove old, add new)
-        const oldGolfer = existingPickThisWeek.golferName;
         const newUsedGolfers = usedGolfers.filter(g => g !== oldGolfer);
         newUsedGolfers.push(golferName);
         await storage.updateGolfPoolEntry(entry.id, { usedGolfers: newUsedGolfers });
@@ -1410,6 +1425,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating admin pick:", error);
       return res.status(500).json({ error: "Failed to create pick" });
+    }
+  });
+
+  // Admin: Override used golfer status (remove golfer from usedGolfers list)
+  app.post("/api/golf/entries/:entryId/reset-golfer", isAdmin, async (req, res) => {
+    try {
+      const { golferName } = req.body;
+      
+      if (!golferName) {
+        return res.status(400).json({ error: "Golfer name is required" });
+      }
+
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      const usedGolfers = (entry.usedGolfers as string[]) || [];
+      
+      if (!usedGolfers.includes(golferName)) {
+        return res.status(400).json({ error: "Golfer is not in the used list" });
+      }
+
+      // Remove the golfer from the used list
+      const newUsedGolfers = usedGolfers.filter(g => g !== golferName);
+      await storage.updateGolfPoolEntry(entry.id, { usedGolfers: newUsedGolfers });
+
+      res.json({ 
+        success: true, 
+        message: `${golferName} has been made eligible again`,
+        usedGolfers: newUsedGolfers 
+      });
+    } catch (error) {
+      console.error("Error resetting golfer:", error);
+      res.status(500).json({ error: "Failed to reset golfer" });
+    }
+  });
+
+  // Admin: Get pick history for an entry
+  app.get("/api/golf/entries/:entryId/pick-history", isAdmin, async (req, res) => {
+    try {
+      const entry = await storage.getGolfPoolEntry(req.params.entryId);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+
+      const history = await storage.getGolfPickHistoryForEntry(req.params.entryId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching pick history:", error);
+      res.status(500).json({ error: "Failed to fetch pick history" });
+    }
+  });
+
+  // Admin: Get all pick history for a pool
+  app.get("/api/golf/pools/:poolId/pick-history", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      // Get all pick history for all entries in this pool
+      const allHistory = await Promise.all(
+        entries.map(async (entry) => {
+          const history = await storage.getGolfPickHistoryForEntry(entry.id);
+          return history.map(h => ({
+            ...h,
+            entryName: entry.entryName,
+            entryEmail: entry.email,
+          }));
+        })
+      );
+
+      // Flatten and sort by changedAt descending
+      const flatHistory = allHistory.flat().sort((a, b) => 
+        new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+      );
+
+      res.json(flatHistory);
+    } catch (error) {
+      console.error("Error fetching pool pick history:", error);
+      res.status(500).json({ error: "Failed to fetch pick history" });
     }
   });
 
@@ -1587,126 +1687,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auto-detect current week based on DataGolf field/live tournament
+  // Auto-detect current week based on schedule CSV (date-based, no name matching)
   app.get("/api/golf/pools/:poolId/current-week", async (req, res) => {
     try {
       const pool = await storage.getGolfPool(req.params.poolId);
       if (!pool) {
         return res.status(404).json({ error: "Pool not found" });
       }
-      
-      // Get tournaments for this pool's season
-      const tournaments = await storage.getAllGolfTournaments(pool.season);
-      
-      // Try to get current tournament from DataGolf field endpoint (most reliable for current week)
-      const fieldData = await dataGolfService.getCurrentField();
-      // Also get live data as backup
-      const liveData = await dataGolfService.getLiveTournamentData();
-      
-      // Use field data first (shows current week's tournament), fall back to live
-      const currentEventName = fieldData?.eventName || liveData?.eventName;
-      
-      let detectedWeek = pool.currentWeek || 1;
-      let tournamentName = currentEventName || null;
-      let detectionMethod = "pool_setting";
-      
-      if (currentEventName) {
-        // First, check if this tournament matches any existing picks to determine week
-        // Get all picks for this pool to see what tournaments have been used
-        const entries = await storage.getGolfPoolEntries(pool.id);
-        const picksByWeek = new Map<number, string>();
-        
-        for (const entry of entries) {
-          const picks = await storage.getGolfPicks(entry.id);
-          for (const pick of picks) {
-            if (pick.tournamentName) {
-              picksByWeek.set(pick.weekNumber, pick.tournamentName);
-            }
-          }
-        }
-        
-        // Check if current tournament was already picked in a previous week
-        const normalizedCurrentName = currentEventName.toLowerCase().replace(/[^a-z0-9]/g, '');
-        let matchedWeek: number | null = null;
-        
-        const pickEntries = Array.from(picksByWeek.entries());
-        for (const [week, tourneyName] of pickEntries) {
-          const normalizedPickedName = tourneyName.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (normalizedCurrentName.includes(normalizedPickedName) || 
-              normalizedPickedName.includes(normalizedCurrentName) ||
-              normalizedCurrentName === normalizedPickedName) {
-            matchedWeek = week;
-            break;
-          }
-        }
-        
-        if (matchedWeek !== null) {
-          // Current tournament matches an existing pick week - that's the current week
-          detectedWeek = matchedWeek;
-          detectionMethod = "pick_history_match";
-        } else if (picksByWeek.size > 0) {
-          // Current tournament is NEW (not picked yet) - this is the next week
-          const maxPickedWeek = Math.max(...Array.from(picksByWeek.keys()));
-          detectedWeek = maxPickedWeek + 1;
-          detectionMethod = "next_after_picks";
-        } else {
-          // No picks yet - try to find matching tournament in our database by name
-          const matchingTournament = tournaments.find(t => {
-            const dbName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const liveName = currentEventName.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return dbName.includes(liveName) || liveName.includes(dbName) || 
-                   dbName.split(' ').some((word: string) => word.length > 3 && liveName.includes(word));
-          });
-          
-          if (matchingTournament && matchingTournament.weekNumber) {
-            detectedWeek = matchingTournament.weekNumber;
-            detectionMethod = "tournament_match";
-          } else {
-            // No match in our DB - try to find based on date
-            const now = new Date();
-            const currentTournament = tournaments.find(t => {
-              const start = new Date(t.startDate);
-              const end = new Date(t.endDate);
-              // Add some buffer (tournament week runs from start to end + 1 day)
-              end.setDate(end.getDate() + 1);
-              return now >= start && now <= end;
-            });
-            
-            if (currentTournament && currentTournament.weekNumber) {
-              detectedWeek = currentTournament.weekNumber;
-              detectionMethod = "date_range";
-            } else {
-              // Find the next upcoming tournament
-              const upcomingTournament = tournaments
-                .filter(t => t.weekNumber && new Date(t.startDate) > now)
-                .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0];
-              
-              if (upcomingTournament && upcomingTournament.weekNumber) {
-                detectedWeek = upcomingTournament.weekNumber;
-                detectionMethod = "next_upcoming";
-              }
-            }
-          }
-        }
-      } else {
-        // No tournament data - check if we're between tournaments
-        const now = new Date();
-        const pastTournaments = tournaments
-          .filter(t => t.weekNumber && new Date(t.endDate) < now)
-          .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
-        
-        if (pastTournaments.length > 0 && pastTournaments[0].weekNumber) {
-          // Set to the week after the most recent completed tournament
-          detectedWeek = pastTournaments[0].weekNumber + 1;
-          detectionMethod = "after_completed";
-        }
-      }
-      
+
+      const { week, tournament, status } = getCurrentWeekFromSchedule(pool.season);
+      const pickDeadlineHours = pool.pickDeadlineHours || 0;
+      const deadline = getDeadlineForWeek(pool.season, week, pickDeadlineHours);
+      const deadlinePassed = hasDeadlinePassed(pool.season, week, pickDeadlineHours);
+
       return res.json({
-        currentWeek: detectedWeek,
-        tournamentName,
-        detectionMethod,
-        poolCurrentWeek: pool.currentWeek,
+        currentWeek: week,
+        tournamentName: tournament?.tournamentName || null,
+        startDate: tournament?.startDate.toISOString() || null,
+        endDate: tournament?.endDate.toISOString() || null,
+        deadlineTime: deadline?.toISOString() || null,
+        deadlinePassed,
+        detectionMethod: "schedule_csv",
+        scheduleStatus: status,
       });
     } catch (error) {
       console.error("Error detecting current week:", error);
@@ -1736,6 +1738,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint: Get all picks for a pool with timestamps and entry names
+  app.get("/api/golf/pools/:poolId/all-picks", isAdmin, async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const entries = await storage.getGolfPoolEntries(req.params.poolId);
+      const allPicks = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          allPicks.push({
+            ...pick,
+            entryName: entry.entryName,
+            entryEmail: entry.email,
+          });
+        }
+      }
+      
+      // Sort by updatedAt descending (most recent first)
+      allPicks.sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+        return dateB - dateA;
+      });
+      
+      return res.json(allPicks);
+    } catch (error) {
+      console.error("Error fetching all picks:", error);
+      return res.status(500).json({ error: "Failed to fetch picks" });
+    }
+  });
+
+  // Detect mismatched picks (tournament name doesn't match expected week)
+  app.get("/api/golf/pools/:poolId/mismatched-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      // Build tournament name -> week mapping
+      const tournamentToWeek = new Map<string, number>();
+      for (const t of tournaments) {
+        if (t.weekNumber && t.name) {
+          const normalizedName = t.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+          tournamentToWeek.set(normalizedName, t.weekNumber);
+        }
+      }
+      
+      const mismatchedPicks: Array<{
+        pickId: string;
+        entryId: string;
+        entryName: string;
+        entryEmail: string;
+        golferName: string;
+        savedWeekNumber: number;
+        tournamentName: string;
+        suggestedWeekNumber: number | null;
+        createdAt: string;
+        updatedAt: string;
+      }> = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          if (!pick.tournamentName) continue;
+          
+          const normalizedPickTournament = pick.tournamentName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Find matching tournament by name
+          let suggestedWeek: number | null = null;
+          const tournamentEntries = Array.from(tournamentToWeek.entries());
+          for (const [normalizedTournament, week] of tournamentEntries) {
+            if (normalizedPickTournament.includes(normalizedTournament) ||
+                normalizedTournament.includes(normalizedPickTournament)) {
+              suggestedWeek = week;
+              break;
+            }
+          }
+          
+          // If tournament name suggests a different week than what's saved
+          if (suggestedWeek !== null && suggestedWeek !== pick.weekNumber) {
+            mismatchedPicks.push({
+              pickId: pick.id,
+              entryId: entry.id,
+              entryName: entry.entryName,
+              entryEmail: entry.email,
+              golferName: pick.golferName,
+              savedWeekNumber: pick.weekNumber,
+              tournamentName: pick.tournamentName,
+              suggestedWeekNumber: suggestedWeek,
+              createdAt: pick.createdAt?.toISOString() || '',
+              updatedAt: pick.updatedAt?.toISOString() || '',
+            });
+          }
+        }
+      }
+      
+      return res.json(mismatchedPicks);
+    } catch (error) {
+      console.error("Error detecting mismatched picks:", error);
+      return res.status(500).json({ error: "Failed to detect mismatched picks" });
+    }
+  });
+
+  // Fix a mismatched pick by updating its week number
+  app.post("/api/golf/picks/:pickId/fix-week", async (req, res) => {
+    try {
+      const { newWeekNumber, newTournamentName } = req.body;
+      if (!newWeekNumber || typeof newWeekNumber !== 'number') {
+        return res.status(400).json({ error: "newWeekNumber is required" });
+      }
+      
+      const pick = await storage.getGolfPick(req.params.pickId);
+      if (!pick) {
+        return res.status(404).json({ error: "Pick not found" });
+      }
+      
+      // Save history before fix
+      await storage.createGolfPickHistory({
+        pickId: pick.id,
+        entryId: pick.entryId,
+        poolId: pick.poolId,
+        weekNumber: pick.weekNumber,
+        golferName: pick.golferName,
+        tournamentName: pick.tournamentName,
+        changedBy: "system",
+        reason: `Admin fix: Week ${pick.weekNumber} -> ${newWeekNumber}`,
+      });
+      
+      // Update the pick's week number and optionally tournament name
+      const updateData: any = { weekNumber: newWeekNumber };
+      if (newTournamentName) {
+        updateData.tournamentName = newTournamentName;
+      }
+      
+      const updatedPick = await storage.updateGolfPick(pick.id, updateData);
+      
+      return res.json(updatedPick);
+    } catch (error) {
+      console.error("Error fixing pick week:", error);
+      return res.status(500).json({ error: "Failed to fix pick week" });
+    }
+  });
+
+  // Detect picks edited after their tournament ended (likely meant for next week)
+  app.get("/api/golf/pools/:poolId/late-edited-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const tournaments = await storage.getAllGolfTournaments(pool.season);
+      const entries = await storage.getGolfPoolEntries(pool.id);
+      
+      const lateEditedPicks: Array<{
+        pickId: string;
+        entryId: string;
+        entryName: string;
+        entryEmail: string;
+        golferName: string;
+        savedWeekNumber: number;
+        tournamentName: string | null;
+        suggestedWeekNumber: number;
+        suggestedTournamentName: string | null;
+        createdAt: string;
+        updatedAt: string;
+        tournamentEndDate: string | null;
+      }> = [];
+      
+      for (const entry of entries) {
+        const picks = await storage.getGolfPicks(entry.id);
+        for (const pick of picks) {
+          if (!pick.updatedAt || !pick.createdAt) continue;
+          
+          // Find the tournament for this week
+          const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === pick.weekNumber);
+          if (!weekTournament || !weekTournament.endDate) continue;
+          
+          const tournamentEnd = new Date(weekTournament.endDate);
+          const pickUpdated = new Date(pick.updatedAt);
+          const pickCreated = new Date(pick.createdAt);
+          
+          // If pick was edited after tournament ended, it's likely meant for the next week
+          if (pickUpdated > tournamentEnd && pickUpdated.getTime() !== pickCreated.getTime()) {
+            // Find the next tournament
+            const nextTournament = tournaments.find((t: { weekNumber: number | null }) => 
+              t.weekNumber === pick.weekNumber + 1
+            );
+            
+            lateEditedPicks.push({
+              pickId: pick.id,
+              entryId: entry.id,
+              entryName: entry.entryName,
+              entryEmail: entry.email,
+              golferName: pick.golferName,
+              savedWeekNumber: pick.weekNumber,
+              tournamentName: pick.tournamentName,
+              suggestedWeekNumber: pick.weekNumber + 1,
+              suggestedTournamentName: nextTournament?.name || null,
+              createdAt: pick.createdAt.toISOString(),
+              updatedAt: pick.updatedAt.toISOString(),
+              tournamentEndDate: tournamentEnd.toISOString(),
+            });
+          }
+        }
+      }
+      
+      return res.json(lateEditedPicks);
+    } catch (error) {
+      console.error("Error detecting late-edited picks:", error);
+      return res.status(500).json({ error: "Failed to detect late-edited picks" });
+    }
+  });
+
+  // Bulk fix late-edited picks
+  app.post("/api/golf/pools/:poolId/fix-late-edited-picks", async (req, res) => {
+    try {
+      const pool = await storage.getGolfPool(req.params.poolId);
+      if (!pool) {
+        return res.status(404).json({ error: "Pool not found" });
+      }
+      
+      const { picks } = req.body;
+      if (!Array.isArray(picks)) {
+        return res.status(400).json({ error: "picks array is required" });
+      }
+      
+      const results = [];
+      for (const pickData of picks) {
+        const { pickId, newWeekNumber, newTournamentName } = pickData;
+        const pick = await storage.getGolfPick(pickId);
+        if (pick) {
+          // Save history before bulk fix
+          await storage.createGolfPickHistory({
+            pickId: pick.id,
+            entryId: pick.entryId,
+            poolId: pick.poolId,
+            weekNumber: pick.weekNumber,
+            golferName: pick.golferName,
+            tournamentName: pick.tournamentName,
+            changedBy: "system",
+            reason: `Bulk fix: Week ${pick.weekNumber} -> ${newWeekNumber}`,
+          });
+          
+          const updateData: any = { weekNumber: newWeekNumber };
+          if (newTournamentName) {
+            updateData.tournamentName = newTournamentName;
+          }
+          await storage.updateGolfPick(pickId, updateData);
+          results.push({ pickId, success: true });
+        } else {
+          results.push({ pickId, success: false, error: "Pick not found" });
+        }
+      }
+      
+      return res.json({ fixed: results.filter(r => r.success).length, results });
+    } catch (error) {
+      console.error("Error bulk fixing picks:", error);
+      return res.status(500).json({ error: "Failed to bulk fix picks" });
+    }
+  });
+
   app.post("/api/golf/entries/:entryId/picks", async (req, res) => {
     try {
       const entry = await storage.getGolfPoolEntry(req.params.entryId);
@@ -1759,49 +2032,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pool not found" });
       }
       
-      // Check if deadline has passed for this week
+      // Check if deadline has passed using schedule CSV (date-based)
       const pickWeek = req.body.weekNumber;
-      const tournaments = await storage.getAllGolfTournaments(pool.season);
-      const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === pickWeek);
+      const pickDeadlineHours = pool.pickDeadlineHours || 0;
       
-      let deadlinePassed = false;
-      
-      if (weekTournament && weekTournament.startDate) {
-        const tournamentStart = new Date(weekTournament.startDate);
-        const pickDeadlineHours = pool.pickDeadlineHours || 0;
-        const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
-        
-        if (new Date() >= deadlineTime) {
-          deadlinePassed = true;
-        }
-      } else {
-        // Fallback: If no internal tournament, check DataGolf API
-        // Compare field endpoint (upcoming) vs live endpoint (current/finishing)
-        // Only mark deadline passed if the FIELD tournament has started
-        const fieldData = await dataGolfService.getCurrentField();
-        const liveData = await dataGolfService.getLiveTournamentData();
-        
-        if (fieldData && liveData) {
-          // If field and live show the SAME tournament and it has started, deadline passed
-          const fieldTournament = fieldData.eventName?.toLowerCase().trim();
-          const liveTournament = liveData.eventName?.toLowerCase().trim();
-          
-          if (fieldTournament === liveTournament && liveData.currentRound >= 1) {
-            // The upcoming tournament has started - deadline has passed
-            console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
-            deadlinePassed = true;
-          } else {
-            // Field and live show different tournaments - the new week hasn't started yet
-            console.log(`Pick deadline check: Field="${fieldData.eventName}", Live="${liveData.eventName}" - different tournaments, deadline NOT passed`);
-          }
-        } else if (liveData && liveData.currentRound >= 1 && !fieldData) {
-          // No field data but live shows a tournament in progress
-          console.log(`Pick deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed (no field data)`);
-          deadlinePassed = true;
-        }
+      // Verify pick is for the current week
+      const { week: scheduleWeek } = getCurrentWeekFromSchedule(pool.season);
+      if (pickWeek !== scheduleWeek) {
+        return res.status(400).json({ 
+          error: `Cannot submit pick for week ${pickWeek}. Current week is ${scheduleWeek}.` 
+        });
       }
       
-      if (deadlinePassed) {
+      if (hasDeadlinePassed(pool.season, pickWeek, pickDeadlineHours)) {
         return res.status(400).json({ 
           error: "Pick deadline has passed for this week. Tournament has already started." 
         });
@@ -2221,44 +2464,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Pool not found" });
       }
       
-      // Check if deadline has passed for this week
-      const tournaments = await storage.getAllGolfTournaments(pool.season);
-      const weekTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === weekNum);
+      // Check if deadline has passed using schedule CSV (date-based)
+      const pickDeadlineHours = pool.pickDeadlineHours || 0;
       
-      let deadlinePassed = false;
-      
-      if (weekTournament && weekTournament.startDate) {
-        const tournamentStart = new Date(weekTournament.startDate);
-        const pickDeadlineHours = pool.pickDeadlineHours || 0;
-        const deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
-        
-        if (new Date() >= deadlineTime) {
-          deadlinePassed = true;
-        }
-      } else {
-        // Fallback: If no internal tournament, check DataGolf API
-        // Compare field endpoint (upcoming) vs live endpoint (current/finishing)
-        const fieldData = await dataGolfService.getCurrentField();
-        const liveData = await dataGolfService.getLiveTournamentData();
-        
-        if (fieldData && liveData) {
-          // If field and live show the SAME tournament and it has started, deadline passed
-          const fieldTournament = fieldData.eventName?.toLowerCase().trim();
-          const liveTournament = liveData.eventName?.toLowerCase().trim();
-          
-          if (fieldTournament === liveTournament && liveData.currentRound >= 1) {
-            console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed`);
-            deadlinePassed = true;
-          } else {
-            console.log(`Pick change deadline check: Field="${fieldData.eventName}", Live="${liveData.eventName}" - different tournaments, deadline NOT passed`);
-          }
-        } else if (liveData && liveData.currentRound >= 1 && !fieldData) {
-          console.log(`Pick change deadline check: Tournament "${liveData.eventName}" is in round ${liveData.currentRound}, deadline passed (no field data)`);
-          deadlinePassed = true;
-        }
-      }
-      
-      if (deadlinePassed) {
+      if (hasDeadlinePassed(pool.season, weekNum, pickDeadlineHours)) {
         return res.status(400).json({ 
           error: "Pick deadline has passed for this week. You cannot change your pick after the tournament starts." 
         });
@@ -2284,6 +2493,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (usedExcludingCurrent.includes(newGolferName)) {
           return res.status(400).json({ error: "This golfer has already been used" });
         }
+        
+        // Save original pick to history before updating
+        await storage.createGolfPickHistory({
+          pickId: existingPick.id,
+          entryId: existingPick.entryId,
+          poolId: existingPick.poolId,
+          weekNumber: existingPick.weekNumber,
+          golferName: oldGolferName,
+          tournamentName: existingPick.tournamentName,
+          changedBy: "user",
+          reason: `Changed from ${oldGolferName} to ${newGolferName}`,
+        });
         
         // Update the used golfers list
         const newUsedGolfers = [...usedExcludingCurrent, newGolferName];
@@ -2335,55 +2556,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const entries = await storage.getGolfPoolEntries(pool.id);
-      const currentWeek = pool.currentWeek || 1;
       const pickDeadlineHours = pool.pickDeadlineHours || 0;
       const showPicksOverride = pool.showPicksOverride || false;
       
-      // Get current tournament to determine deadline
-      const tournaments = await storage.getAllGolfTournaments(pool.season);
-      const currentTournament = tournaments.find((t: { weekNumber: number | null }) => t.weekNumber === currentWeek);
+      // Get current week from schedule CSV (date-based, consistent with picks page)
+      const { week: currentWeek } = getCurrentWeekFromSchedule(pool.season);
       
-      // Calculate if deadline has passed for current week
-      let deadlinePassed = false;
-      let deadlineTime: Date | null = null;
-      
-      if (currentTournament && currentTournament.startDate) {
-        const tournamentStart = new Date(currentTournament.startDate);
-        deadlineTime = new Date(tournamentStart.getTime() - (pickDeadlineHours * 60 * 60 * 1000));
-        deadlinePassed = new Date() >= deadlineTime;
-      } else {
-        // No internal tournament data - calculate deadline as next Thursday 8AM PST
-        // PGA tournaments typically start Thursday morning
-        const now = new Date();
-        const pstOffset = -8 * 60; // PST is UTC-8
-        
-        // Find the next Thursday (or current day if already Thursday before 8AM PST)
-        const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 4 = Thursday
-        let daysUntilThursday = (4 - dayOfWeek + 7) % 7;
-        
-        // If today is Thursday, check if we're past 8AM PST
-        if (daysUntilThursday === 0) {
-          const pstHour = now.getUTCHours() + (pstOffset / 60);
-          if (pstHour >= 8) {
-            // Already past Thursday 8AM PST, deadline has passed for this week
-            deadlinePassed = true;
-          }
-        }
-        
-        if (!deadlinePassed) {
-          // Calculate Thursday 8AM PST
-          const thursday = new Date(now);
-          thursday.setUTCDate(now.getUTCDate() + daysUntilThursday);
-          thursday.setUTCHours(16, 0, 0, 0); // 8AM PST = 16:00 UTC
-          deadlineTime = thursday;
-          deadlinePassed = now >= deadlineTime;
-        }
-      }
+      // Calculate deadline from schedule
+      const deadlineTime = getDeadlineForWeek(pool.season, currentWeek, pickDeadlineHours);
+      const deadlinePassed = hasDeadlinePassed(pool.season, currentWeek, pickDeadlineHours);
       
       // Admin override: if showPicksOverride is true, always show picks
-      if (showPicksOverride) {
-        deadlinePassed = true;
-      }
+      const shouldReveal = deadlinePassed || showPicksOverride;
       
       // Get picks for all entries and all weeks
       const entriesWithPicks = await Promise.all(
@@ -2392,8 +2576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Mask current week picks if deadline hasn't passed
           const maskedPicks = picks.map(pick => {
-            const isCurrentWeek = pick.weekNumber === currentWeek;
-            const shouldMask = isCurrentWeek && !deadlinePassed;
+            const shouldMask = pick.weekNumber === currentWeek && !shouldReveal;
             
             return {
               id: pick.id,
@@ -2420,11 +2603,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: pool.id,
           name: pool.name,
           season: pool.season,
-          currentWeek: pool.currentWeek,
+          currentWeek: currentWeek,
           status: pool.status,
           pickDeadlineHours: pickDeadlineHours,
         },
-        deadlinePassed,
+        deadlinePassed: shouldReveal,
         deadlineTime: deadlineTime?.toISOString() || null,
         entries: entriesWithPicks,
       });

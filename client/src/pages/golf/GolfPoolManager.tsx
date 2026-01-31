@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 type PoolWithDetails = GolfPool & {
@@ -38,6 +38,19 @@ type TournamentField = {
   golfers: GolferWithRanking[];
 };
 
+type PickWithTimestamp = {
+  id: string;
+  entryId: string;
+  weekNumber: number;
+  golferName: string;
+  tournamentName: string | null;
+  result: string;
+  createdAt: string;
+  updatedAt: string;
+  entryName: string;
+  entryEmail: string;
+};
+
 export default function GolfPoolManager() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -50,6 +63,13 @@ export default function GolfPoolManager() {
   const [selectedEntryForPick, setSelectedEntryForPick] = useState<GolfPoolEntry | null>(null);
   const [pickSearchQuery, setPickSearchQuery] = useState("");
   const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
+  const [showAllPicksDialog, setShowAllPicksDialog] = useState(false);
+  const [showMismatchedPicksDialog, setShowMismatchedPicksDialog] = useState(false);
+  const [showLateEditedPicksDialog, setShowLateEditedPicksDialog] = useState(false);
+  const [showPickHistoryDialog, setShowPickHistoryDialog] = useState(false);
+  const [showResetGolferDialog, setShowResetGolferDialog] = useState(false);
+  const [selectedEntryForReset, setSelectedEntryForReset] = useState<GolfPoolEntry | null>(null);
+  const [golferToReset, setGolferToReset] = useState<string>("");
 
   const { data: pool, isLoading } = useQuery<PoolWithDetails>({
     queryKey: ["/api/golf/pools", poolId],
@@ -163,6 +183,169 @@ export default function GolfPoolManager() {
       return response.json();
     },
     enabled: showMakePickDialog,
+  });
+
+  const { data: allPicks = [], refetch: refetchAllPicks } = useQuery<PickWithTimestamp[]>({
+    queryKey: ["/api/golf/pools", poolId, "all-picks"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/all-picks`);
+      if (!response.ok) throw new Error("Failed to fetch picks");
+      return response.json();
+    },
+    enabled: showAllPicksDialog,
+  });
+
+  const { data: autoWeekData, refetch: refetchAutoWeek } = useQuery<{ 
+    currentWeek: number; 
+    tournamentName: string | null;
+    detectionMethod: string;
+    poolCurrentWeek: number;
+  }>({
+    queryKey: ["/api/golf/pools", poolId, "current-week"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/current-week`);
+      if (!response.ok) throw new Error("Failed to detect current week");
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const syncWeekMutation = useMutation({
+    mutationFn: async () => {
+      if (!autoWeekData) throw new Error("No week data available");
+      return await apiRequest("PATCH", `/api/golf/pools/${poolId}`, { 
+        currentWeek: autoWeekData.currentWeek 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ 
+        title: "Week Synced", 
+        description: `Current week updated to Week ${autoWeekData?.currentWeek}${autoWeekData?.tournamentName ? ` (${autoWeekData.tournamentName})` : ''}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  type MismatchedPick = {
+    pickId: string;
+    entryId: string;
+    entryName: string;
+    entryEmail: string;
+    golferName: string;
+    savedWeekNumber: number;
+    tournamentName: string;
+    suggestedWeekNumber: number | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+
+  const { data: mismatchedPicks = [], refetch: refetchMismatchedPicks } = useQuery<MismatchedPick[]>({
+    queryKey: ["/api/golf/pools", poolId, "mismatched-picks"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/mismatched-picks`);
+      if (!response.ok) throw new Error("Failed to fetch mismatched picks");
+      return response.json();
+    },
+    enabled: showMismatchedPicksDialog,
+  });
+
+  const fixPickWeekMutation = useMutation({
+    mutationFn: async ({ pickId, newWeekNumber }: { pickId: string; newWeekNumber: number }) => {
+      return await apiRequest("POST", `/api/golf/picks/${pickId}/fix-week`, { newWeekNumber });
+    },
+    onSuccess: () => {
+      refetchMismatchedPicks();
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Pick Fixed", description: "Week number updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  type LateEditedPick = {
+    pickId: string;
+    entryId: string;
+    entryName: string;
+    entryEmail: string;
+    golferName: string;
+    savedWeekNumber: number;
+    tournamentName: string | null;
+    suggestedWeekNumber: number;
+    suggestedTournamentName: string | null;
+    createdAt: string;
+    updatedAt: string;
+    tournamentEndDate: string | null;
+  };
+
+  const { data: lateEditedPicks = [], refetch: refetchLateEditedPicks } = useQuery<LateEditedPick[]>({
+    queryKey: ["/api/golf/pools", poolId, "late-edited-picks"],
+    queryFn: async () => {
+      const response = await fetch(`/api/golf/pools/${poolId}/late-edited-picks`);
+      if (!response.ok) throw new Error("Failed to fetch late-edited picks");
+      return response.json();
+    },
+    enabled: showLateEditedPicksDialog,
+  });
+
+  const fixAllLateEditedMutation = useMutation({
+    mutationFn: async (picks: LateEditedPick[]) => {
+      const response = await apiRequest("POST", `/api/golf/pools/${poolId}/fix-late-edited-picks`, {
+        picks: picks.map(p => ({
+          pickId: p.pickId,
+          newWeekNumber: p.suggestedWeekNumber,
+          newTournamentName: p.suggestedTournamentName,
+        })),
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      refetchLateEditedPicks();
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Picks Fixed", description: `${data.fixed} picks updated to the correct week` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  type PickHistoryItem = {
+    id: string;
+    pickId: string;
+    entryId: string;
+    poolId: string;
+    weekNumber: number;
+    golferName: string;
+    tournamentName: string | null;
+    changedAt: string;
+    changedBy: string | null;
+    reason: string | null;
+    entryName: string;
+    entryEmail: string;
+  };
+
+  const { data: pickHistory = [], isLoading: isLoadingPickHistory } = useQuery<PickHistoryItem[]>({
+    queryKey: [`/api/golf/pools/${poolId}/pick-history`],
+    enabled: showPickHistoryDialog,
+  });
+
+  const resetGolferMutation = useMutation({
+    mutationFn: async ({ entryId, golferName }: { entryId: string; golferName: string }) => {
+      return await apiRequest("POST", `/api/golf/entries/${entryId}/reset-golfer`, { golferName });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/golf/pools", poolId] });
+      toast({ title: "Golfer Reset", description: "Golfer is now eligible to be picked again" });
+      setShowResetGolferDialog(false);
+      setSelectedEntryForReset(null);
+      setGolferToReset("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   const [showCutCheckDialog, setShowCutCheckDialog] = useState(false);
@@ -383,7 +566,7 @@ export default function GolfPoolManager() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Current Week</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
               <Select value={pool.currentWeek?.toString()} onValueChange={handleWeekChange}>
                 <SelectTrigger data-testid="select-current-week">
                   <SelectValue />
@@ -399,6 +582,24 @@ export default function GolfPoolManager() {
                   })}
                 </SelectContent>
               </Select>
+              {autoWeekData && autoWeekData.currentWeek !== pool.currentWeek && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3" />
+                  DataGolf suggests Week {autoWeekData.currentWeek}
+                  {autoWeekData.tournamentName && ` (${autoWeekData.tournamentName})`}
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => syncWeekMutation.mutate()}
+                disabled={syncWeekMutation.isPending || !autoWeekData || autoWeekData.currentWeek === pool.currentWeek}
+                data-testid="button-sync-week"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncWeekMutation.isPending ? 'animate-spin' : ''}`} />
+                {syncWeekMutation.isPending ? "Syncing..." : "Sync with Tournament"}
+              </Button>
             </CardContent>
           </Card>
 
@@ -430,6 +631,33 @@ export default function GolfPoolManager() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllPicksDialog(true)}
+                data-testid="button-view-all-picks"
+              >
+                <History className="h-4 w-4 mr-2" />
+                All Picks
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPickHistoryDialog(true)}
+                data-testid="button-view-pick-history"
+              >
+                <History className="h-4 w-4 mr-2" />
+                Change History
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLateEditedPicksDialog(true)}
+                data-testid="button-fix-late-edited-picks"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Fix Late-Edited Picks
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -539,6 +767,21 @@ export default function GolfPoolManager() {
                             >
                               <UserCog className="h-4 w-4 mr-1" />
                               Make Pick
+                            </Button>
+                          )}
+                          {((entry.usedGolfers as string[]) || []).length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEntryForReset(entry);
+                                setGolferToReset("");
+                                setShowResetGolferDialog(true);
+                              }}
+                              data-testid={`button-reset-golfer-${entry.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reset Golfer
                             </Button>
                           )}
                           {entry.status === "active" ? (
@@ -871,6 +1114,379 @@ export default function GolfPoolManager() {
                 data-testid="button-confirm-pick"
               >
                 {adminPickMutation.isPending ? "Submitting..." : "Submit Pick"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showAllPicksDialog} onOpenChange={setShowAllPicksDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                All Current Picks
+              </DialogTitle>
+              <DialogDescription>
+                All current picks sorted by most recent activity. Admin can see all picks regardless of deadline.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {allPicks.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No picks have been made yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Week</TableHead>
+                      <TableHead>Golfer</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Last Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allPicks.map((pick) => (
+                      <TableRow key={pick.id} data-testid={`row-pick-${pick.id}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{pick.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>Week {pick.weekNumber}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.golferName}</div>
+                            {pick.tournamentName && (
+                              <div className="text-xs text-muted-foreground">{pick.tournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {format(new Date(pick.createdAt), "MMM d, h:mm a")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            {format(new Date(pick.updatedAt), "MMM d, h:mm a")}
+                            {pick.updatedAt !== pick.createdAt && (
+                              <Badge variant="outline" className="ml-1 text-xs">edited</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAllPicksDialog(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showMismatchedPicksDialog} onOpenChange={setShowMismatchedPicksDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Mismatched Picks
+              </DialogTitle>
+              <DialogDescription>
+                Picks where the tournament name suggests a different week than what's saved. 
+                These may be picks that were made when the pool week was out of sync.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {mismatchedPicks.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No mismatched picks found. All picks appear to be correctly assigned.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Golfer</TableHead>
+                      <TableHead>Tournament</TableHead>
+                      <TableHead>Saved Week</TableHead>
+                      <TableHead>Should Be</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mismatchedPicks.map((pick) => (
+                      <TableRow key={pick.pickId} data-testid={`row-mismatch-${pick.pickId}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{pick.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{pick.golferName}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">{pick.tournamentName}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-amber-600">
+                            Week {pick.savedWeekNumber}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="default">
+                            Week {pick.suggestedWeekNumber}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => fixPickWeekMutation.mutate({ 
+                              pickId: pick.pickId, 
+                              newWeekNumber: pick.suggestedWeekNumber! 
+                            })}
+                            disabled={fixPickWeekMutation.isPending}
+                            data-testid={`button-fix-${pick.pickId}`}
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Fix
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowMismatchedPicksDialog(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showLateEditedPicksDialog} onOpenChange={setShowLateEditedPicksDialog}>
+          <DialogContent className="max-w-5xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Late-Edited Picks
+              </DialogTitle>
+              <DialogDescription>
+                Picks that were edited after their tournament ended. These are likely picks that 
+                were intended for the next week but got saved under the wrong week.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {lateEditedPicks.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No late-edited picks found.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Golfer</TableHead>
+                      <TableHead>Saved As</TableHead>
+                      <TableHead>Should Be</TableHead>
+                      <TableHead>Edited On</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lateEditedPicks.map((pick) => (
+                      <TableRow key={pick.pickId} data-testid={`row-late-${pick.pickId}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pick.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{pick.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{pick.golferName}</TableCell>
+                        <TableCell>
+                          <div>
+                            <Badge variant="outline" className="text-amber-600">
+                              Week {pick.savedWeekNumber}
+                            </Badge>
+                            {pick.tournamentName && (
+                              <div className="text-xs text-muted-foreground mt-1">{pick.tournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <Badge variant="default">
+                              Week {pick.suggestedWeekNumber}
+                            </Badge>
+                            {pick.suggestedTournamentName && (
+                              <div className="text-xs text-muted-foreground mt-1">{pick.suggestedTournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {format(new Date(pick.updatedAt), "MMM d, h:mm a")}
+                          </div>
+                          {pick.tournamentEndDate && (
+                            <div className="text-xs text-muted-foreground">
+                              (Tourney ended {format(new Date(pick.tournamentEndDate), "MMM d")})
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter className="flex gap-2">
+              {lateEditedPicks.length > 0 && (
+                <Button
+                  onClick={() => fixAllLateEditedMutation.mutate(lateEditedPicks)}
+                  disabled={fixAllLateEditedMutation.isPending}
+                  data-testid="button-fix-all-late-edited"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  {fixAllLateEditedMutation.isPending 
+                    ? "Fixing..." 
+                    : `Fix All ${lateEditedPicks.length} Picks`}
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setShowLateEditedPicksDialog(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showPickHistoryDialog} onOpenChange={setShowPickHistoryDialog}>
+          <DialogContent className="max-w-5xl max-h-[80vh] overflow-hidden flex flex-col" data-testid="dialog-pick-change-history">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Pick Change History
+              </DialogTitle>
+              <DialogDescription>
+                Audit trail of all pick changes. Shows the original pick before each change.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto">
+              {isLoadingPickHistory ? (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-loading-history">
+                  Loading pick history...
+                </div>
+              ) : pickHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground" data-testid="text-no-history">
+                  No pick changes recorded yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entry</TableHead>
+                      <TableHead>Week</TableHead>
+                      <TableHead>Original Pick</TableHead>
+                      <TableHead>Changed By</TableHead>
+                      <TableHead>Changed At</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pickHistory.map((item) => (
+                      <TableRow key={item.id} data-testid={`row-history-${item.id}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{item.entryName}</div>
+                            <div className="text-xs text-muted-foreground">{item.entryEmail}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>Week {item.weekNumber}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{item.golferName}</div>
+                            {item.tournamentName && (
+                              <div className="text-xs text-muted-foreground">{item.tournamentName}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={item.changedBy === "admin" ? "default" : "outline"}>
+                            {item.changedBy || "unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {format(new Date(item.changedAt), "MMM d, h:mm a")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground max-w-[200px] truncate">
+                            {item.reason || "-"}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPickHistoryDialog(false)} data-testid="button-close-history">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showResetGolferDialog} onOpenChange={setShowResetGolferDialog}>
+          <DialogContent className="max-w-md" data-testid="dialog-reset-golfer">
+            <DialogHeader>
+              <DialogTitle>Reset Used Golfer</DialogTitle>
+              <DialogDescription>
+                Make a golfer eligible to be picked again for {selectedEntryForReset?.entryName || "this entry"}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Label>Select Golfer to Reset</Label>
+              <Select value={golferToReset} onValueChange={setGolferToReset}>
+                <SelectTrigger className="mt-2" data-testid="select-golfer-to-reset">
+                  <SelectValue placeholder="Choose a golfer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {((selectedEntryForReset?.usedGolfers as string[]) || []).map((golfer) => (
+                    <SelectItem key={golfer} value={golfer} data-testid={`select-golfer-${golfer.replace(/\s+/g, '-')}`}>
+                      {golfer}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground mt-2">
+                This will remove the golfer from the "used" list, allowing the participant to pick them again.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowResetGolferDialog(false)} data-testid="button-cancel-reset">
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedEntryForReset && golferToReset) {
+                    resetGolferMutation.mutate({ entryId: selectedEntryForReset.id, golferName: golferToReset });
+                  }
+                }}
+                disabled={!golferToReset || resetGolferMutation.isPending}
+                data-testid="button-confirm-reset-golfer"
+              >
+                {resetGolferMutation.isPending ? "Resetting..." : "Reset Golfer"}
               </Button>
             </DialogFooter>
           </DialogContent>

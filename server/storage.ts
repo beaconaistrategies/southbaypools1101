@@ -1,4 +1,4 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type SquareTemplate, type InsertSquareTemplate, type ContestManager, type InsertContestManager, type UserRole, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, squareTemplates, contestManagers } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type GolfPickHistory, type InsertGolfPickHistory, type SquareTemplate, type InsertSquareTemplate, type ContestManager, type InsertContestManager, type UserRole, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, golfPickHistory, squareTemplates, contestManagers } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, asc, desc } from "drizzle-orm";
 
@@ -80,10 +80,16 @@ export interface IStorage {
   deleteGolfPoolEntry(id: string): Promise<void>;
 
   // Golf Pick methods
+  getGolfPick(id: string): Promise<GolfPick | undefined>;
   getGolfPicks(entryId: string): Promise<GolfPick[]>;
   getGolfPicksForWeek(poolId: string, weekNumber: number): Promise<GolfPick[]>;
   createGolfPick(pick: InsertGolfPick): Promise<GolfPick>;
   updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined>;
+
+  // Golf Pick History methods
+  getGolfPickHistory(pickId: string): Promise<GolfPickHistory[]>;
+  getGolfPickHistoryForEntry(entryId: string): Promise<GolfPickHistory[]>;
+  createGolfPickHistory(history: InsertGolfPickHistory): Promise<GolfPickHistory>;
 
   // Square Template methods
   getAllSquareTemplates(operatorId: string): Promise<SquareTemplate[]>;
@@ -456,6 +462,11 @@ export class DbStorage implements IStorage {
   }
 
   // Golf Pick methods
+  async getGolfPick(id: string): Promise<GolfPick | undefined> {
+    const result = await db.select().from(golfPicks).where(eq(golfPicks.id, id)).limit(1);
+    return result[0];
+  }
+
   async getGolfPicks(entryId: string): Promise<GolfPick[]> {
     return await db.select().from(golfPicks).where(eq(golfPicks.entryId, entryId)).orderBy(asc(golfPicks.weekNumber));
   }
@@ -472,6 +483,20 @@ export class DbStorage implements IStorage {
 
   async updateGolfPick(id: string, pick: Partial<GolfPick>): Promise<GolfPick | undefined> {
     const result = await db.update(golfPicks).set(pick).where(eq(golfPicks.id, id)).returning();
+    return result[0];
+  }
+
+  // Golf Pick History methods
+  async getGolfPickHistory(pickId: string): Promise<GolfPickHistory[]> {
+    return await db.select().from(golfPickHistory).where(eq(golfPickHistory.pickId, pickId)).orderBy(desc(golfPickHistory.changedAt));
+  }
+
+  async getGolfPickHistoryForEntry(entryId: string): Promise<GolfPickHistory[]> {
+    return await db.select().from(golfPickHistory).where(eq(golfPickHistory.entryId, entryId)).orderBy(desc(golfPickHistory.changedAt));
+  }
+
+  async createGolfPickHistory(history: InsertGolfPickHistory): Promise<GolfPickHistory> {
+    const result = await db.insert(golfPickHistory).values(history).returning();
     return result[0];
   }
 
