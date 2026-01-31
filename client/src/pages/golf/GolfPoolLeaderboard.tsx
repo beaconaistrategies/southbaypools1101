@@ -68,24 +68,8 @@ export default function GolfPoolLeaderboard() {
   }
 
   const { pool, entries, deadlinePassed, deadlineTime } = leaderboard;
-  
-  // Sort entries: active first, then eliminated by week (most recent first)
-  const sortedEntries = [...entries].sort((a, b) => {
-    // Active entries come first
-    if (a.status === "active" && b.status !== "active") return -1;
-    if (a.status !== "active" && b.status === "active") return 1;
-    
-    // For eliminated entries, sort by elimination week descending (most recent first)
-    if (a.status === "eliminated" && b.status === "eliminated") {
-      return (b.eliminatedWeek || 0) - (a.eliminatedWeek || 0);
-    }
-    
-    // For active entries, sort alphabetically by name
-    return a.entryName.localeCompare(b.entryName);
-  });
-  
-  const activeEntries = sortedEntries.filter((e) => e.status === "active");
-  const eliminatedEntries = sortedEntries.filter((e) => e.status === "eliminated");
+  const activeEntries = entries.filter((e) => e.status === "active");
+  const eliminatedEntries = entries.filter((e) => e.status === "eliminated");
   const maxWeek = Math.max(pool.currentWeek || 1, ...entries.flatMap((e) => e.picks.map((p) => p.weekNumber)));
   const weeks = Array.from({ length: maxWeek }, (_, i) => i + 1);
   
@@ -167,7 +151,7 @@ export default function GolfPoolLeaderboard() {
           </TabsList>
 
           <TabsContent value="all">
-            <LeaderboardTable entries={sortedEntries} weeks={weeks} getPickForWeek={getPickForWeek} getResultBadge={getResultBadge} currentWeek={pool.currentWeek} />
+            <LeaderboardTable entries={entries} weeks={weeks} getPickForWeek={getPickForWeek} getResultBadge={getResultBadge} currentWeek={pool.currentWeek} />
           </TabsContent>
 
           <TabsContent value="active">
