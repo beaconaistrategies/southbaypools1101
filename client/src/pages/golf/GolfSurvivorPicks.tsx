@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import type { GolfPool, GolfPoolEntry, GolfTournament, GolfPick } from "@shared/schema";
 import { ArrowLeft, Trophy, Calendar, CircleDot, Check, X, Flag, User, Search, Loader2 } from "lucide-react";
-import { format } from "date-fns";
+import { formatUTCDate } from "@/lib/utils";
 
 type GolferWithRanking = {
   dgId: number;
@@ -259,7 +259,7 @@ export default function GolfSurvivorPicks() {
               </CardTitle>
               {currentTournament && (
                 <CardDescription>
-                  {format(new Date(currentTournament.startDate), "MMM d")} - {format(new Date(currentTournament.endDate), "MMM d, yyyy")}
+                  {formatUTCDate(currentTournament.startDate, "MMM d")} - {formatUTCDate(currentTournament.endDate, "MMM d, yyyy")}
                 </CardDescription>
               )}
             </CardHeader>

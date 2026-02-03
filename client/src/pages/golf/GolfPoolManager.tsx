@@ -17,6 +17,7 @@ import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
 import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import { formatUTCDate } from "@/lib/utils";
 
 type PoolWithDetails = GolfPool & {
   entries: GolfPoolEntry[];
@@ -1338,7 +1339,7 @@ export default function GolfPoolManager() {
                           </div>
                           {pick.tournamentEndDate && (
                             <div className="text-xs text-muted-foreground">
-                              (Tourney ended {format(new Date(pick.tournamentEndDate), "MMM d")})
+                              (Tourney ended {formatUTCDate(pick.tournamentEndDate, "MMM d")})
                             </div>
                           )}
                         </TableCell>
