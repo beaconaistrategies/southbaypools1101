@@ -1,7 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
+import { type Square, insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
@@ -750,6 +750,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error assigning random square:", error);
       res.status(500).json({ error: "Failed to assign random square" });
+    }
+  });
+
+  // Admin: Randomly assign additional squares to all existing holders
+  app.post("/api/contests/:id/double-up", isAdmin, async (req, res) => {
+    try {
+      const contestId = req.params.id;
+      const allSquares = await storage.getContestSquares(contestId);
+      
+      const occupied = allSquares.filter((s: Square) => s.holderName && s.holderName.trim() !== "");
+      const empty = allSquares.filter((s: Square) => !s.holderName || s.holderName.trim() === "");
+      
+      if (occupied.length === 0) {
+        return res.status(400).json({ error: "No occupied squares found" });
+      }
+      if (empty.length < occupied.length) {
+        return res.status(400).json({ error: `Not enough empty squares. Need ${occupied.length} but only ${empty.length} available.` });
+      }
+      
+      // Shuffle occupied list (Fisher-Yates)
+      const shuffled = [...occupied];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      
+      const assignments: { squareIndex: number; holderName: string }[] = [];
+      for (let i = 0; i < shuffled.length; i++) {
+        const source = shuffled[i];
+        const target = empty[i];
+        await storage.updateSquareByContestAndIndex(contestId, target.index, {
+          status: "taken",
+          holderName: source.holderName || "",
+          holderEmail: source.holderEmail || "",
+          entryName: source.entryName || "",
+          participantId: source.participantId || undefined,
+        });
+        assignments.push({ squareIndex: target.index, holderName: source.holderName || "" });
+      }
+      
+      res.json({ 
+        message: `Successfully assigned ${assignments.length} additional squares`,
+        assignments 
+      });
+    } catch (error) {
+      console.error("Error in double-up assignment:", error);
+      res.status(500).json({ error: "Failed to assign squares" });
     }
   });
 
