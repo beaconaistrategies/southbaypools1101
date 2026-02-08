@@ -754,7 +754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: Randomly assign additional squares to all existing holders
-  app.post("/api/contests/:id/double-up", isAdmin, async (req, res) => {
+  app.post("/api/contests/:id/double-up", async (req, res) => {
     try {
       const contestId = req.params.id;
       const allSquares = await storage.getContestSquares(contestId);
