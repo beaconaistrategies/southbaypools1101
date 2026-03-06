@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
 import type { GolfPool, GolfPoolEntry, GolfTournament } from "@shared/schema";
-import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Plus, Users, Calendar, Trophy, CircleDot, Settings, Trash2, Play, Pause, Check, X, Copy, ExternalLink, UserCog, Search, Download, Clock, History, RefreshCw, AlertTriangle, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { formatUTCDate } from "@/lib/utils";
 
@@ -64,6 +64,8 @@ export default function GolfPoolManager() {
   const [selectedEntryForPick, setSelectedEntryForPick] = useState<GolfPoolEntry | null>(null);
   const [pickSearchQuery, setPickSearchQuery] = useState("");
   const [selectedGolfer, setSelectedGolfer] = useState<GolferWithRanking | null>(null);
+  const [selectedWeekForPick, setSelectedWeekForPick] = useState<number>(1);
+  const [manualGolferName, setManualGolferName] = useState("");
   const [showAllPicksDialog, setShowAllPicksDialog] = useState(false);
   const [showMismatchedPicksDialog, setShowMismatchedPicksDialog] = useState(false);
   const [showLateEditedPicksDialog, setShowLateEditedPicksDialog] = useState(false);
@@ -756,20 +758,22 @@ export default function GolfPoolManager() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {entry.status === "active" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedEntryForPick(entry);
-                                setShowMakePickDialog(true);
-                              }}
-                              data-testid={`button-make-pick-${entry.id}`}
-                            >
-                              <UserCog className="h-4 w-4 mr-1" />
-                              Make Pick
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedEntryForPick(entry);
+                              setSelectedWeekForPick(pool.currentWeek || 1);
+                              setSelectedGolfer(null);
+                              setManualGolferName("");
+                              setPickSearchQuery("");
+                              setShowMakePickDialog(true);
+                            }}
+                            data-testid={`button-make-pick-${entry.id}`}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit Pick
+                          </Button>
                           {((entry.usedGolfers as string[]) || []).length > 0 && (
                             <Button
                               variant="ghost"
@@ -1022,79 +1026,122 @@ export default function GolfPoolManager() {
           </CardContent>
         </Card>
 
-        {/* Make Pick Dialog */}
+        {/* Make / Edit Pick Dialog */}
         <Dialog open={showMakePickDialog} onOpenChange={(open) => {
           setShowMakePickDialog(open);
           if (!open) {
             setSelectedEntryForPick(null);
             setSelectedGolfer(null);
             setPickSearchQuery("");
+            setManualGolferName("");
           }
         }}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle>Make Pick for {selectedEntryForPick?.entryName}</DialogTitle>
+              <DialogTitle>Edit Pick for {selectedEntryForPick?.entryName}</DialogTitle>
               <DialogDescription>
-                Select a golfer for Week {pool.currentWeek}
-                {currentTournament && ` - ${currentTournament.name}`}
+                Choose the week, then select or type a golfer name.
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-hidden flex flex-col gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search golfers..."
-                  value={pickSearchQuery}
-                  onChange={(e) => setPickSearchQuery(e.target.value)}
-                  className="pl-10"
-                  data-testid="input-golfer-search"
-                />
-              </div>
-              <div className="flex-1 overflow-y-auto border rounded-md">
-                {filteredGolfers.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground">
-                    {fieldData ? "No golfers found" : "Loading tournament field..."}
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {filteredGolfers.slice(0, 50).map((golfer) => {
-                      const isUsed = usedGolfersForSelectedEntry.includes(golfer.name);
+              {/* Week selector */}
+              <div>
+                <Label className="text-sm font-medium mb-1 block">Week</Label>
+                <Select
+                  value={selectedWeekForPick.toString()}
+                  onValueChange={(v) => {
+                    setSelectedWeekForPick(parseInt(v));
+                    setSelectedGolfer(null);
+                    setPickSearchQuery("");
+                    setManualGolferName("");
+                  }}
+                >
+                  <SelectTrigger data-testid="select-pick-week">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 35 }, (_, i) => i + 1).map((week) => {
+                      const t = tournaments.find((t) => t.weekNumber === week);
                       return (
-                        <div
-                          key={golfer.datagolfId}
-                          className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
-                            isUsed
-                              ? "bg-muted/50 opacity-50 cursor-not-allowed"
-                              : selectedGolfer?.datagolfId === golfer.datagolfId
-                              ? "bg-primary/10"
-                              : "hover:bg-muted/50"
-                          }`}
-                          onClick={() => {
-                            if (!isUsed) {
-                              setSelectedGolfer(golfer);
-                            }
-                          }}
-                          data-testid={`golfer-option-${golfer.datagolfId}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-muted-foreground w-8">
-                              #{golfer.ranking || "—"}
-                            </span>
-                            <span className="font-medium">{golfer.name}</span>
-                            <span className="text-sm text-muted-foreground">{golfer.country}</span>
-                          </div>
-                          {isUsed && (
-                            <Badge variant="secondary">Already Used</Badge>
-                          )}
-                          {selectedGolfer?.datagolfId === golfer.datagolfId && !isUsed && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </div>
+                        <SelectItem key={week} value={week.toString()}>
+                          Week {week}{t ? ` — ${t.name}` : ""}
+                        </SelectItem>
                       );
                     })}
-                  </div>
-                )}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {selectedWeekForPick === pool.currentWeek ? (
+                /* Current week: search DataGolf field */
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search current tournament field..."
+                      value={pickSearchQuery}
+                      onChange={(e) => setPickSearchQuery(e.target.value)}
+                      className="pl-10"
+                      data-testid="input-golfer-search"
+                    />
+                  </div>
+                  <div className="flex-1 overflow-y-auto border rounded-md">
+                    {filteredGolfers.length === 0 ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        {fieldData ? "No golfers found" : "Loading tournament field..."}
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {filteredGolfers.slice(0, 50).map((golfer) => {
+                          const isUsed = usedGolfersForSelectedEntry.includes(golfer.name);
+                          return (
+                            <div
+                              key={golfer.datagolfId}
+                              className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
+                                isUsed
+                                  ? "bg-muted/50 opacity-50 cursor-not-allowed"
+                                  : selectedGolfer?.datagolfId === golfer.datagolfId
+                                  ? "bg-primary/10"
+                                  : "hover:bg-muted/50"
+                              }`}
+                              onClick={() => {
+                                if (!isUsed) setSelectedGolfer(golfer);
+                              }}
+                              data-testid={`golfer-option-${golfer.datagolfId}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm text-muted-foreground w-8">
+                                  #{golfer.ranking || "—"}
+                                </span>
+                                <span className="font-medium">{golfer.name}</span>
+                                <span className="text-sm text-muted-foreground">{golfer.country}</span>
+                              </div>
+                              {isUsed && <Badge variant="secondary">Already Used</Badge>}
+                              {selectedGolfer?.datagolfId === golfer.datagolfId && !isUsed && (
+                                <Check className="h-4 w-4 text-primary" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* Past/future week: manual golfer name entry */
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Golfer Name</Label>
+                  <Input
+                    placeholder='e.g. Gerard, Ryan'
+                    value={manualGolferName}
+                    onChange={(e) => setManualGolferName(e.target.value)}
+                    data-testid="input-manual-golfer-name"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use "Last, First" format to match DataGolf records.
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMakePickDialog(false)}>
@@ -1102,19 +1149,26 @@ export default function GolfPoolManager() {
               </Button>
               <Button
                 onClick={() => {
-                  if (selectedEntryForPick && selectedGolfer && pool.currentWeek) {
+                  if (!selectedEntryForPick) return;
+                  const isCurrentWeek = selectedWeekForPick === pool.currentWeek;
+                  const golferName = isCurrentWeek ? selectedGolfer?.name : manualGolferName.trim();
+                  const tournamentForWeek = tournaments.find((t) => t.weekNumber === selectedWeekForPick);
+                  if (golferName) {
                     adminPickMutation.mutate({
                       entryId: selectedEntryForPick.id,
-                      golferName: selectedGolfer.name,
-                      weekNumber: pool.currentWeek,
-                      tournamentName: currentTournament?.name,
+                      golferName,
+                      weekNumber: selectedWeekForPick,
+                      tournamentName: tournamentForWeek?.name,
                     });
                   }
                 }}
-                disabled={!selectedGolfer || adminPickMutation.isPending}
+                disabled={
+                  adminPickMutation.isPending ||
+                  (selectedWeekForPick === pool.currentWeek ? !selectedGolfer : !manualGolferName.trim())
+                }
                 data-testid="button-confirm-pick"
               >
-                {adminPickMutation.isPending ? "Submitting..." : "Submit Pick"}
+                {adminPickMutation.isPending ? "Submitting..." : "Save Pick"}
               </Button>
             </DialogFooter>
           </DialogContent>
