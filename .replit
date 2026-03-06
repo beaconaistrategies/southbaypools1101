@@ -45,3 +45,4 @@ integrations = ["javascript_database:1.0.0", "javascript_log_in_with_replit:1.0.
 
 [userenv.shared]
 GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyTLXXO_ZKs49feUu5zW1LUm8Z6X-_cs6ucV57NWRxZc4bBGfWBhIKbQpzAqCMbrKu2/exec"
+SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxSHTKhu1fdSMk3GevsY12bVUA71sXb7TBlMvWhOvzteDSSvC3tc9Vr1VirqWXRTPzr/exec"

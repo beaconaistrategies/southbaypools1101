@@ -1,4 +1,33 @@
 // Google Sheets sync — fires after any successful signup or square claim
+export async function pushSignupToSheet(data: {
+  name: string;
+  email: string;
+  poolName: string;
+  entryName?: string;
+  squareNumber?: number | null;
+  entryFee?: number | null;
+}): Promise<void> {
+  const url = process.env.SHEET_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        secret: "SBP_1101",
+        name: data.name,
+        email: data.email,
+        poolName: data.poolName,
+        entryName: data.entryName || data.name,
+        entryFee: data.entryFee ?? "",
+        date: new Date().toISOString(),
+      }),
+    });
+  } catch (err) {
+    console.error("Sheet webhook failed:", err);
+  }
+}
+
 export async function pushPaymentToSheet(data: {
   name: string;
   email: string;
