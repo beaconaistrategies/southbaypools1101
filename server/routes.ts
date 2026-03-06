@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { type Square, insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
-import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification } from "./webhook";
+import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification, pushPaymentToSheet } from "./webhook";
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
 import { getCurrentWeekFromSchedule, hasDeadlinePassed, getDeadlineForWeek, getTournamentForWeek } from "./schedule";
@@ -630,9 +630,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Square not found" });
       }
 
-      // If a square was just claimed, send webhook notification
+      // If a square was just claimed, send webhook notification and sheet sync
       if (square.status === "taken" && square.holderEmail && square.entryName) {
         const contest = await storage.getContest(req.params.contestId);
+
+        // Sync to Google Sheet (fire-and-forget)
+        void pushPaymentToSheet({
+          name: square.holderName || square.entryName,
+          email: square.holderEmail,
+          poolName: contest?.name || "",
+          squareNumber: square.index,
+          amount: null,
+        }).catch(err => console.error("Sheet sync error:", err));
+
         if (contest?.webhookUrl) {
           // Fire and forget - don't await
           sendWebhookNotification(contest.webhookUrl, {
@@ -724,6 +734,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!claimedSquare) {
         return res.status(500).json({ error: "Failed to claim square" });
       }
+
+      // Sync to Google Sheet (fire-and-forget)
+      void pushPaymentToSheet({
+        name: participantData.holderName,
+        email: participantData.holderEmail,
+        poolName: contest.name,
+        squareNumber: claimedSquare.index,
+        amount: null,
+      }).catch(err => console.error("Sheet sync error:", err));
 
       // Send webhook notification
       if (contest.webhookUrl) {
@@ -2397,6 +2416,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: "Unable to create entry" });
       }
       
+      // Sync to Google Sheet (fire-and-forget)
+      const recipientNameForSheet = [req.user.claims.first_name, req.user.claims.last_name].filter(Boolean).join(" ") || email;
+      void pushPaymentToSheet({
+        name: recipientNameForSheet,
+        email,
+        poolName: pool.name,
+        squareNumber: null,
+        amount: pool.entryFee || null,
+      }).catch(err => console.error("Sheet sync error:", err));
+
       // Send webhook notifications (fire-and-forget)
       if (pool.webhookUrl) {
         const recipientName = [req.user.claims.first_name, req.user.claims.last_name].filter(Boolean).join(" ") || email;

@@ -1,3 +1,42 @@
+// Google Sheets sync — fires after any successful signup or square claim
+export async function pushPaymentToSheet(data: {
+  name: string;
+  email: string;
+  poolName: string;
+  squareNumber?: number | null;
+  amount?: string | null;
+  method?: string;
+}): Promise<void> {
+  const WEB_APP_URL = process.env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (!WEB_APP_URL) {
+    console.log("⚠️  GOOGLE_SHEET_WEBHOOK_URL not set, skipping sheet sync");
+    return;
+  }
+
+  const payload = {
+    secret: "SBP_1101",
+    name: data.name,
+    email: data.email,
+    amount: data.amount ?? "",
+    note: data.poolName,
+    method: data.method || "WEB",
+    date: new Date().toISOString(),
+    ...(data.squareNumber != null && { squareNumber: data.squareNumber }),
+  };
+
+  try {
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await res.json().catch(() => res.text());
+    console.log("✅ Sheet sync:", result);
+  } catch (err) {
+    console.error("❌ Sheet sync failed:", err);
+  }
+}
+
 // Golf pick notification webhook
 export async function sendGolfPickWebhookNotification(
   webhookUrl: string,
