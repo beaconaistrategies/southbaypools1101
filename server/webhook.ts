@@ -3,6 +3,7 @@ export async function pushPaymentToSheet(data: {
   name: string;
   email: string;
   poolName: string;
+  entryName?: string;
   squareNumber?: number | null;
   amount?: string | null;
   method?: string;
@@ -21,6 +22,7 @@ export async function pushPaymentToSheet(data: {
     note: data.poolName,
     method: data.method || "WEB",
     date: new Date().toISOString(),
+    ...(data.entryName != null && { entryName: data.entryName }),
     ...(data.squareNumber != null && { squareNumber: data.squareNumber }),
   };
 

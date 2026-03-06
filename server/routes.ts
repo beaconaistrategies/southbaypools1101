@@ -2417,13 +2417,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Sync to Google Sheet (fire-and-forget)
-      const recipientNameForSheet = [req.user.claims.first_name, req.user.claims.last_name].filter(Boolean).join(" ") || email;
       void pushPaymentToSheet({
-        name: recipientNameForSheet,
+        name: req.user.claims.name || [req.user.claims.first_name, req.user.claims.last_name].filter(Boolean).join(" ") || email,
         email,
         poolName: pool.name,
-        squareNumber: null,
-        amount: pool.entryFee || null,
+        entryName: entry.entryName,
       }).catch(err => console.error("Sheet sync error:", err));
 
       // Send webhook notifications (fire-and-forget)
