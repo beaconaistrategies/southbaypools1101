@@ -26,6 +26,7 @@ import EarningsPoolSignup from "@/pages/golf/EarningsPoolSignup";
 import EarningsPoolScoreboard from "@/pages/golf/EarningsPoolScoreboard";
 import EarningsPoolAdmin from "@/pages/golf/EarningsPoolAdmin";
 import NewEarningsPool from "@/pages/golf/NewEarningsPool";
+import GolfMajorsHub from "@/pages/golf/GolfMajorsHub";
 import UserManagement from "@/pages/UserManagement";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
@@ -114,6 +115,7 @@ function Router() {
       <Route path="/golf/pool/:poolId/entry/:entryId" component={GolfSurvivorPicks} />
       <Route path="/golf/pool/:poolId/signup" component={GolfPoolSignup} />
       <Route path="/golf/pool/:poolId/leaderboard" component={GolfPoolLeaderboard} />
+      <Route path="/golf-majors" component={GolfMajorsHub} />
       <Route path="/golf/earnings/:poolId/signup" component={EarningsPoolSignup} />
       <Route path="/golf/earnings/:poolId/scoreboard" component={EarningsPoolScoreboard} />
       <Route path="/admin/golf/earnings/new">

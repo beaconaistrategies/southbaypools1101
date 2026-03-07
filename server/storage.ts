@@ -527,6 +527,10 @@ export class DbStorage implements IStorage {
     return await db.select().from(earningsPools).where(eq(earningsPools.operatorId, operatorId)).orderBy(desc(earningsPools.createdAt));
   }
 
+  async listEarningsPools(): Promise<EarningsPool[]> {
+    return await db.select().from(earningsPools).orderBy(desc(earningsPools.createdAt));
+  }
+
   async getEarningsPool(id: string): Promise<EarningsPool | undefined> {
     const result = await db.select().from(earningsPools).where(eq(earningsPools.id, id)).limit(1);
     return result[0];

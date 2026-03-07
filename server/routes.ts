@@ -2918,6 +2918,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public: List all earnings pools (for Golf Majors hub)
+  app.get("/api/earnings-pools/public/list", async (req, res) => {
+    try {
+      const pools = await storage.listEarningsPools();
+      const results = await Promise.all(
+        pools.map(async (pool) => {
+          const entryCount = await storage.countEarningsPoolEntries(pool.id);
+          return {
+            id: pool.id,
+            name: pool.name,
+            slug: pool.slug,
+            tournamentName: pool.tournamentName,
+            season: pool.season,
+            status: pool.status,
+            entryFee: pool.entryFee,
+            entryCount,
+          };
+        })
+      );
+      res.json(results);
+    } catch (error) {
+      console.error("Error listing public earnings pools:", error);
+      res.status(500).json({ error: "Failed to list pools" });
+    }
+  });
+
   // Public: Look up entries by slug
   app.get("/api/earnings-pools/by-slug/:slug", async (req, res) => {
     try {

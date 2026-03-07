@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
-import { Grid3X3, Calendar, Users, LogIn, LogOut, LayoutDashboard, Trophy, ArrowRight } from "lucide-react";
+import { Grid3X3, Calendar, Users, LogIn, LogOut, LayoutDashboard, Trophy, ArrowRight, Medal } from "lucide-react";
 import { format } from "date-fns";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
@@ -99,12 +99,18 @@ export default function Hub() {
                 Golf Survivor
               </Button>
             </Link>
+            <Link href="/golf-majors">
+              <Button size="lg" variant="outline" className="gap-2" data-testid="button-golf-majors">
+                <Medal className="h-5 w-5" />
+                Golf Majors
+              </Button>
+            </Link>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto mb-12">
-          <a 
-            href="#contests" 
+        <div className="grid gap-4 md:grid-cols-3 max-w-3xl mx-auto mb-12">
+          <a
+            href="#contests"
             className="block"
             onClick={(e) => {
               e.preventDefault();
@@ -144,6 +150,28 @@ export default function Hub() {
                   <div>
                     <CardTitle className="text-lg">Golf Survivor</CardTitle>
                     <CardDescription>Pick golfers, make the cut, survive</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Season 2026</span>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover-elevate cursor-pointer" data-testid="card-golf-majors-type">
+            <Link href="/golf-majors">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <Medal className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Golf Majors</CardTitle>
+                    <CardDescription>Tiered picks, real earnings</CardDescription>
                   </div>
                 </div>
               </CardHeader>
