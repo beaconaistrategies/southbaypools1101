@@ -7,6 +7,8 @@ import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignu
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
 import { getCurrentWeekFromSchedule, hasDeadlinePassed, getDeadlineForWeek, getTournamentForWeek } from "./schedule";
+import { refreshEarningsPool, assignTiers, startScoringLoop, stopScoringLoop } from "./earningsEngine";
+import { earningsPools, earningsPoolGolfers, earningsPoolEntries, insertEarningsPoolSchema, insertEarningsPoolEntrySchema } from "@shared/schema";
 
 // Helper to get operatorId from authenticated request
 async function getOperatorId(req: Request): Promise<string | null> {
@@ -2628,6 +2630,303 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching entries by email:", error);
       res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
+  // ==========================================
+  // EARNINGS POOL ROUTES
+  // ==========================================
+
+  // Admin: List all earnings pools
+  app.get("/api/earnings-pools", isAdmin, async (req: any, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) return res.status(400).json({ error: "No operator assigned" });
+      const pools = await storage.getAllEarningsPools(operatorId);
+      res.json(pools);
+    } catch (error) {
+      console.error("Error fetching earnings pools:", error);
+      res.status(500).json({ error: "Failed to fetch earnings pools" });
+    }
+  });
+
+  // Admin: Get single earnings pool
+  app.get("/api/earnings-pools/:id", isAdmin, async (req: any, res) => {
+    try {
+      const pool = await storage.getEarningsPool(req.params.id);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+      res.json(pool);
+    } catch (error) {
+      console.error("Error fetching earnings pool:", error);
+      res.status(500).json({ error: "Failed to fetch earnings pool" });
+    }
+  });
+
+  // Admin: Create earnings pool
+  app.post("/api/earnings-pools", isAdmin, async (req: any, res) => {
+    try {
+      const operatorId = await getOperatorId(req);
+      if (!operatorId) return res.status(400).json({ error: "No operator assigned" });
+
+      const parsed = insertEarningsPoolSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      }
+
+      const pool = await storage.createEarningsPool({ ...parsed.data, operatorId });
+      res.json(pool);
+    } catch (error) {
+      console.error("Error creating earnings pool:", error);
+      res.status(500).json({ error: "Failed to create earnings pool" });
+    }
+  });
+
+  // Admin: Update earnings pool
+  app.patch("/api/earnings-pools/:id", isAdmin, async (req: any, res) => {
+    try {
+      const pool = await storage.updateEarningsPool(req.params.id, req.body);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+      res.json(pool);
+    } catch (error) {
+      console.error("Error updating earnings pool:", error);
+      res.status(500).json({ error: "Failed to update earnings pool" });
+    }
+  });
+
+  // Admin: Delete earnings pool
+  app.delete("/api/earnings-pools/:id", isAdmin, async (req: any, res) => {
+    try {
+      stopScoringLoop(req.params.id);
+      await storage.deleteEarningsPool(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting earnings pool:", error);
+      res.status(500).json({ error: "Failed to delete earnings pool" });
+    }
+  });
+
+  // Admin: Populate golfers from DataGolf field into tiers
+  app.post("/api/earnings-pools/:id/populate-field", isAdmin, async (req: any, res) => {
+    try {
+      const poolId = req.params.id;
+      const pool = await storage.getEarningsPool(poolId);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      // Fetch current tournament field from DataGolf
+      const field = await dataGolfService.getCurrentField("pga");
+
+      // Clear existing golfers
+      await storage.deleteEarningsPoolGolfers(poolId);
+
+      // Assign tiers based on ranking order
+      const golferInserts = field.golfers.map((g, i) => ({
+        poolId,
+        dgId: g.dgId,
+        name: g.name,
+        country: g.country,
+        tier: assignTiers(field.golfers.length, i),
+        dgRank: g.dgRank,
+        owgrRank: g.owgrRank,
+      }));
+
+      const golfers = await storage.createEarningsPoolGolfers(golferInserts);
+
+      // Update pool with tournament name
+      await storage.updateEarningsPool(poolId, {
+        tournamentName: field.eventName,
+        tournamentDgId: field.eventId,
+      } as any);
+
+      res.json({ golfers, eventName: field.eventName, totalGolfers: golfers.length });
+    } catch (error) {
+      console.error("Error populating field:", error);
+      res.status(500).json({ error: "Failed to populate field" });
+    }
+  });
+
+  // Admin: Get golfers for a pool (grouped by tier)
+  app.get("/api/earnings-pools/:id/golfers", async (req, res) => {
+    try {
+      const golfers = await storage.getEarningsPoolGolfers(req.params.id);
+      // Group by tier
+      const tiers: Record<number, typeof golfers> = { 1: [], 2: [], 3: [], 4: [] };
+      golfers.forEach(g => {
+        if (tiers[g.tier]) tiers[g.tier].push(g);
+      });
+      res.json({ golfers, tiers });
+    } catch (error) {
+      console.error("Error fetching golfers:", error);
+      res.status(500).json({ error: "Failed to fetch golfers" });
+    }
+  });
+
+  // Admin: Trigger manual scoring refresh
+  app.post("/api/earnings-pools/:id/refresh", isAdmin, async (req: any, res) => {
+    try {
+      const rankings = await refreshEarningsPool(req.params.id);
+      res.json({ success: true, entryCount: rankings.length });
+    } catch (error) {
+      console.error("Error refreshing earnings pool:", error);
+      res.status(500).json({ error: "Failed to refresh scores" });
+    }
+  });
+
+  // Admin: Start/stop auto-scoring
+  app.post("/api/earnings-pools/:id/scoring-loop", isAdmin, async (req: any, res) => {
+    try {
+      const { action } = req.body;
+      if (action === "start") {
+        startScoringLoop(req.params.id);
+        await storage.updateEarningsPool(req.params.id, { status: "live" } as any);
+        res.json({ success: true, message: "Scoring loop started" });
+      } else if (action === "stop") {
+        stopScoringLoop(req.params.id);
+        res.json({ success: true, message: "Scoring loop stopped" });
+      } else {
+        res.status(400).json({ error: "Invalid action. Use 'start' or 'stop'" });
+      }
+    } catch (error) {
+      console.error("Error managing scoring loop:", error);
+      res.status(500).json({ error: "Failed to manage scoring loop" });
+    }
+  });
+
+  // Admin: Get all entries for a pool
+  app.get("/api/earnings-pools/:id/entries", isAdmin, async (req: any, res) => {
+    try {
+      const entries = await storage.getEarningsPoolEntries(req.params.id);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching entries:", error);
+      res.status(500).json({ error: "Failed to fetch entries" });
+    }
+  });
+
+  // Admin: Delete an entry
+  app.delete("/api/earnings-pools/:poolId/entries/:entryId", isAdmin, async (req: any, res) => {
+    try {
+      await storage.deleteEarningsPoolEntry(req.params.entryId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting entry:", error);
+      res.status(500).json({ error: "Failed to delete entry" });
+    }
+  });
+
+  // Public: Submit an entry
+  app.post("/api/earnings-pools/:id/entries", async (req, res) => {
+    try {
+      const poolId = req.params.id;
+      const pool = await storage.getEarningsPool(poolId);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      if (pool.status !== "open") {
+        return res.status(400).json({ error: "This pool is not accepting entries" });
+      }
+
+      const { entryName, email, tier1GolferId, tier2GolferId, tier3GolferId, tier4GolferId } = req.body;
+
+      if (!entryName || !email || !tier1GolferId || !tier2GolferId || !tier3GolferId || !tier4GolferId) {
+        return res.status(400).json({ error: "All fields are required. Select one golfer from each tier." });
+      }
+
+      // Check entry limit per email
+      const existingEntries = await storage.getEarningsPoolEntriesByEmail(poolId, email);
+      if (existingEntries.length >= pool.maxEntriesPerEmail) {
+        return res.status(400).json({
+          error: `Maximum ${pool.maxEntriesPerEmail} entry(ies) per email. You already have ${existingEntries.length}.`
+        });
+      }
+
+      // Validate that golfers belong to correct tiers
+      const golfers = await storage.getEarningsPoolGolfers(poolId);
+      const golferMap = new Map(golfers.map(g => [g.id, g]));
+
+      const t1 = golferMap.get(tier1GolferId);
+      const t2 = golferMap.get(tier2GolferId);
+      const t3 = golferMap.get(tier3GolferId);
+      const t4 = golferMap.get(tier4GolferId);
+
+      if (!t1 || t1.tier !== 1) return res.status(400).json({ error: "Invalid Tier 1 selection" });
+      if (!t2 || t2.tier !== 2) return res.status(400).json({ error: "Invalid Tier 2 selection" });
+      if (!t3 || t3.tier !== 3) return res.status(400).json({ error: "Invalid Tier 3 selection" });
+      if (!t4 || t4.tier !== 4) return res.status(400).json({ error: "Invalid Tier 4 selection" });
+
+      const entry = await storage.createEarningsPoolEntry({
+        poolId,
+        entryName,
+        email,
+        tier1GolferId,
+        tier2GolferId,
+        tier3GolferId,
+        tier4GolferId,
+      });
+
+      res.json(entry);
+    } catch (error) {
+      console.error("Error creating entry:", error);
+      res.status(500).json({ error: "Failed to submit entry" });
+    }
+  });
+
+  // Public: Get scoreboard (reads from cache for performance)
+  app.get("/api/earnings-pools/:id/scoreboard", async (req, res) => {
+    try {
+      const pool = await storage.getEarningsPool(req.params.id);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      res.json({
+        pool: {
+          id: pool.id,
+          name: pool.name,
+          tournamentName: pool.tournamentName,
+          season: pool.season,
+          status: pool.status,
+          entryFee: pool.entryFee,
+        },
+        rankings: pool.rankingsCache || [],
+        lastUpdated: pool.rankingsCacheUpdatedAt?.toISOString() || null,
+      });
+    } catch (error) {
+      console.error("Error fetching scoreboard:", error);
+      res.status(500).json({ error: "Failed to fetch scoreboard" });
+    }
+  });
+
+  // Public: Get pool info for entry form
+  app.get("/api/earnings-pools/:id/public", async (req, res) => {
+    try {
+      const pool = await storage.getEarningsPool(req.params.id);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+
+      const entryCount = await storage.countEarningsPoolEntries(pool.id);
+
+      res.json({
+        id: pool.id,
+        name: pool.name,
+        tournamentName: pool.tournamentName,
+        season: pool.season,
+        status: pool.status,
+        entryFee: pool.entryFee,
+        notes: pool.notes,
+        maxEntriesPerEmail: pool.maxEntriesPerEmail,
+        entryCount,
+      });
+    } catch (error) {
+      console.error("Error fetching public pool info:", error);
+      res.status(500).json({ error: "Failed to fetch pool info" });
+    }
+  });
+
+  // Public: Look up entries by slug
+  app.get("/api/earnings-pools/by-slug/:slug", async (req, res) => {
+    try {
+      const pool = await storage.getEarningsPoolBySlug(req.params.slug);
+      if (!pool) return res.status(404).json({ error: "Pool not found" });
+      res.json(pool);
+    } catch (error) {
+      console.error("Error fetching pool by slug:", error);
+      res.status(500).json({ error: "Failed to fetch pool" });
     }
   });
 

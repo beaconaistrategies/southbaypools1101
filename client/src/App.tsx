@@ -23,6 +23,10 @@ import GolfPoolManager from "@/pages/golf/GolfPoolManager";
 import GolfSurvivorPicks from "@/pages/golf/GolfSurvivorPicks";
 import GolfPoolSignup from "@/pages/golf/GolfPoolSignup";
 import GolfPoolLeaderboard from "@/pages/golf/GolfPoolLeaderboard";
+import EarningsPoolSignup from "@/pages/golf/EarningsPoolSignup";
+import EarningsPoolScoreboard from "@/pages/golf/EarningsPoolScoreboard";
+import EarningsPoolAdmin from "@/pages/golf/EarningsPoolAdmin";
+import NewEarningsPool from "@/pages/golf/NewEarningsPool";
 import UserManagement from "@/pages/UserManagement";
 import NotFound from "@/pages/not-found";
 
@@ -122,6 +126,14 @@ function Router() {
       <Route path="/golf/pool/:poolId/entry/:entryId" component={GolfSurvivorPicks} />
       <Route path="/golf/pool/:poolId/signup" component={GolfPoolSignup} />
       <Route path="/golf/pool/:poolId/leaderboard" component={GolfPoolLeaderboard} />
+      <Route path="/golf/earnings/:poolId/signup" component={EarningsPoolSignup} />
+      <Route path="/golf/earnings/:poolId/scoreboard" component={EarningsPoolScoreboard} />
+      <Route path="/admin/golf/earnings/new">
+        {() => <ProtectedRoute component={NewEarningsPool} />}
+      </Route>
+      <Route path="/admin/golf/earnings/:id">
+        {() => <ProtectedRoute component={EarningsPoolAdmin} />}
+      </Route>
       <Route path="/board/:id" component={PublicBoard} />
       <Route path="/pool/:operatorSlug/:contestSlug" component={PublicBoard} />
       <Route path="/my-contests" component={MyContests} />

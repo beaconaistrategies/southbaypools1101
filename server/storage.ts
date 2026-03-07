@@ -1,4 +1,4 @@
-import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type GolfPickHistory, type InsertGolfPickHistory, type SquareTemplate, type InsertSquareTemplate, type ContestManager, type InsertContestManager, type UserRole, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, golfPickHistory, squareTemplates, contestManagers } from "@shared/schema";
+import { type User, type UpsertUser, type Contest, type InsertContest, type Square, type InsertSquare, type Folder, type InsertFolder, type Operator, type InsertOperator, type Participant, type InsertParticipant, type GolfTournament, type InsertGolfTournament, type GolfPool, type InsertGolfPool, type GolfPoolEntry, type InsertGolfPoolEntry, type GolfPick, type InsertGolfPick, type GolfPickHistory, type InsertGolfPickHistory, type SquareTemplate, type InsertSquareTemplate, type ContestManager, type InsertContestManager, type UserRole, type EarningsPool, type InsertEarningsPool, type EarningsPoolGolfer, type InsertEarningsPoolGolfer, type EarningsPoolEntry, type InsertEarningsPoolEntry, contests, squares, users, folders, operators, participants, golfTournaments, golfPools, golfPoolEntries, golfPicks, golfPickHistory, squareTemplates, contestManagers, earningsPools, earningsPoolGolfers, earningsPoolEntries } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, asc, desc } from "drizzle-orm";
 
@@ -517,6 +517,103 @@ export class DbStorage implements IStorage {
 
   async deleteSquareTemplate(id: string): Promise<void> {
     await db.delete(squareTemplates).where(eq(squareTemplates.id, id));
+  }
+
+  // ==========================================
+  // Earnings Pool methods
+  // ==========================================
+
+  async getAllEarningsPools(operatorId: string): Promise<EarningsPool[]> {
+    return await db.select().from(earningsPools).where(eq(earningsPools.operatorId, operatorId)).orderBy(desc(earningsPools.createdAt));
+  }
+
+  async getEarningsPool(id: string): Promise<EarningsPool | undefined> {
+    const result = await db.select().from(earningsPools).where(eq(earningsPools.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getEarningsPoolBySlug(slug: string, operatorId?: string): Promise<EarningsPool | undefined> {
+    if (operatorId) {
+      const result = await db.select().from(earningsPools)
+        .where(and(eq(earningsPools.slug, slug), eq(earningsPools.operatorId, operatorId))).limit(1);
+      return result[0];
+    }
+    const result = await db.select().from(earningsPools).where(eq(earningsPools.slug, slug)).limit(1);
+    return result[0];
+  }
+
+  async createEarningsPool(pool: InsertEarningsPool & { operatorId: string }): Promise<EarningsPool> {
+    const result = await db.insert(earningsPools).values(pool).returning();
+    return result[0];
+  }
+
+  async updateEarningsPool(id: string, pool: Partial<EarningsPool>): Promise<EarningsPool | undefined> {
+    const result = await db.update(earningsPools).set({ ...pool, updatedAt: new Date() })
+      .where(eq(earningsPools.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteEarningsPool(id: string): Promise<void> {
+    await db.delete(earningsPools).where(eq(earningsPools.id, id));
+  }
+
+  // Earnings Pool Golfer methods
+  async getEarningsPoolGolfers(poolId: string): Promise<EarningsPoolGolfer[]> {
+    return await db.select().from(earningsPoolGolfers)
+      .where(eq(earningsPoolGolfers.poolId, poolId))
+      .orderBy(asc(earningsPoolGolfers.tier), asc(earningsPoolGolfers.dgRank));
+  }
+
+  async getEarningsPoolGolfersByTier(poolId: string, tier: number): Promise<EarningsPoolGolfer[]> {
+    return await db.select().from(earningsPoolGolfers)
+      .where(and(eq(earningsPoolGolfers.poolId, poolId), eq(earningsPoolGolfers.tier, tier)))
+      .orderBy(asc(earningsPoolGolfers.dgRank));
+  }
+
+  async createEarningsPoolGolfer(golfer: InsertEarningsPoolGolfer): Promise<EarningsPoolGolfer> {
+    const result = await db.insert(earningsPoolGolfers).values(golfer).returning();
+    return result[0];
+  }
+
+  async createEarningsPoolGolfers(golfersList: InsertEarningsPoolGolfer[]): Promise<EarningsPoolGolfer[]> {
+    if (golfersList.length === 0) return [];
+    const result = await db.insert(earningsPoolGolfers).values(golfersList).returning();
+    return result;
+  }
+
+  async deleteEarningsPoolGolfers(poolId: string): Promise<void> {
+    await db.delete(earningsPoolGolfers).where(eq(earningsPoolGolfers.poolId, poolId));
+  }
+
+  // Earnings Pool Entry methods
+  async getEarningsPoolEntries(poolId: string): Promise<EarningsPoolEntry[]> {
+    return await db.select().from(earningsPoolEntries)
+      .where(eq(earningsPoolEntries.poolId, poolId))
+      .orderBy(asc(earningsPoolEntries.currentRank));
+  }
+
+  async getEarningsPoolEntry(id: string): Promise<EarningsPoolEntry | undefined> {
+    const result = await db.select().from(earningsPoolEntries).where(eq(earningsPoolEntries.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getEarningsPoolEntriesByEmail(poolId: string, email: string): Promise<EarningsPoolEntry[]> {
+    return await db.select().from(earningsPoolEntries)
+      .where(and(eq(earningsPoolEntries.poolId, poolId), eq(earningsPoolEntries.email, email)));
+  }
+
+  async createEarningsPoolEntry(entry: InsertEarningsPoolEntry): Promise<EarningsPoolEntry> {
+    const result = await db.insert(earningsPoolEntries).values(entry).returning();
+    return result[0];
+  }
+
+  async deleteEarningsPoolEntry(id: string): Promise<void> {
+    await db.delete(earningsPoolEntries).where(eq(earningsPoolEntries.id, id));
+  }
+
+  async countEarningsPoolEntries(poolId: string): Promise<number> {
+    const entries = await db.select().from(earningsPoolEntries).where(eq(earningsPoolEntries.poolId, poolId));
+    return entries.length;
   }
 }
 
