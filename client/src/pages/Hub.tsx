@@ -84,7 +84,7 @@ export default function Hub() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Welcome to South Bay Pools</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Join our football squares and survivor pools. Pick your squares, track your entries, and compete for prizes!
+            Join our football squares, survivor pools, and golf majors. Pick your squares, track your entries, and compete for prizes!
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-4">
             <Link href="/join">
