@@ -48,6 +48,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
   email: varchar("email").unique(),
+  passwordHash: varchar("password_hash"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),

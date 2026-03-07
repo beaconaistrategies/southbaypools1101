@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertContestSchema, updateContestSchema, updateSquareSchema, insertFolderSchema, insertSquareTemplateSchema, insertGolfTournamentSchema, insertGolfPoolSchema, insertGolfPoolEntrySchema, insertGolfPickSchema } from "@shared/schema";
 import { z } from "zod";
 import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignupWebhookNotification, sendGolfEntryWebhookNotification } from "./webhook";
-import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
+import { setupAuth, isAuthenticated, isAdmin } from "./auth";
 import { dataGolfService } from "./datagolf";
 import { getCurrentWeekFromSchedule, hasDeadlinePassed, getDeadlineForWeek, getTournamentForWeek } from "./schedule";
 import { refreshEarningsPool, assignTiers, startScoringLoop, stopScoringLoop } from "./earningsEngine";
