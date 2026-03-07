@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import TopNav from "@/components/TopNav";
-import type { GolfPool } from "@shared/schema";
-import { Plus, Search, Trophy, Users, Calendar, CircleDot, Flag } from "lucide-react";
+import type { GolfPool, EarningsPool } from "@shared/schema";
+import { Plus, Search, Trophy, Users, Calendar, CircleDot, Flag, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 
 type GolfPoolWithCounts = GolfPool & {
@@ -170,7 +170,105 @@ export default function AdminGolfDashboard() {
             ))}
           </div>
         )}
+
+        {/* Earnings Pools Section */}
+        <EarningsPoolsSection />
       </main>
+    </div>
+  );
+}
+
+function EarningsPoolsSection() {
+  const [, setLocation] = useLocation();
+
+  const { data: earningsPools = [], isLoading } = useQuery<EarningsPool[]>({
+    queryKey: ["/api/earnings-pools"],
+  });
+
+  const getStatusBadge = (status: string | null) => {
+    switch (status) {
+      case "open":
+        return <Badge className="bg-blue-600 text-white">Open</Badge>;
+      case "live":
+        return <Badge className="bg-green-600 text-white">Live</Badge>;
+      case "locked":
+        return <Badge variant="secondary">Locked</Badge>;
+      case "completed":
+        return <Badge variant="outline">Completed</Badge>;
+      default:
+        return <Badge variant="secondary">{status || "Setup"}</Badge>;
+    }
+  };
+
+  return (
+    <div className="mt-12">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-semibold flex items-center gap-2">
+            <DollarSign className="h-6 w-6 text-green-600" />
+            Earnings Pools
+          </h2>
+          <p className="text-muted-foreground mt-1">
+            Tiered golf earnings pools with automated scoring
+          </p>
+        </div>
+        <Button onClick={() => setLocation("/admin/golf/earnings/new")}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Earnings Pool
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-muted-foreground text-center py-8">Loading...</p>
+      ) : earningsPools.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-8">
+            <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No earnings pools yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create your first tiered earnings pool to get started.
+            </p>
+            <Button onClick={() => setLocation("/admin/golf/earnings/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Earnings Pool
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {earningsPools.map((pool) => (
+            <Card
+              key={pool.id}
+              className="hover-elevate cursor-pointer"
+              onClick={() => setLocation(`/admin/golf/earnings/${pool.id}`)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-lg">{pool.name}</CardTitle>
+                  {getStatusBadge(pool.status)}
+                </div>
+                <CardDescription>{pool.tournamentName} - {pool.season}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {pool.entryFee && (
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Entry: {pool.entryFee}</span>
+                    </div>
+                  )}
+                  {pool.rankingsCacheUpdatedAt && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>Last updated: {new Date(pool.rankingsCacheUpdatedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

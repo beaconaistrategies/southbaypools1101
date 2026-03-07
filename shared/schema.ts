@@ -48,6 +48,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
   email: varchar("email").unique(),
+  passwordHash: varchar("password_hash"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -431,3 +432,129 @@ export const insertSquareTemplateSchema = createInsertSchema(squareTemplates).om
 
 export type InsertSquareTemplate = z.infer<typeof insertSquareTemplateSchema>;
 export type SquareTemplate = typeof squareTemplates.$inferSelect;
+
+// ==========================================
+// EARNINGS POOL SCHEMA (Tiered Golf Earnings)
+// ==========================================
+
+export const earningsPoolStatusEnum = pgEnum("earnings_pool_status", ["setup", "open", "locked", "live", "completed"]);
+
+// Earnings Pools - pool instances for tiered golf earnings contests
+export const earningsPools = pgTable("earnings_pools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  slug: varchar("slug", { length: 100 }),
+  tournamentName: text("tournament_name").notNull(),
+  tournamentDgId: varchar("tournament_dg_id"), // DataGolf event ID
+  season: integer("season").notNull(),
+  entryFee: text("entry_fee"),
+  maxEntriesPerEmail: integer("max_entries_per_email").notNull().default(1),
+  status: earningsPoolStatusEnum("status").notNull().default("setup"),
+  notes: text("notes"),
+  // Prize purse data (from DataGolf or manual)
+  purseTotalCents: integer("purse_total_cents"), // Total tournament purse in cents
+  payoutStructure: jsonb("payout_structure").$type<{ position: number; percentage: number }[]>(),
+  // Summary cache - pre-calculated rankings for fast reads
+  rankingsCache: jsonb("rankings_cache").$type<EarningsRankingEntry[]>(),
+  rankingsCacheUpdatedAt: timestamp("rankings_cache_updated_at"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("earnings_pools_operator_slug_unique").on(table.operatorId, table.slug),
+]);
+
+export type EarningsRankingEntry = {
+  entryId: string;
+  entryName: string;
+  email: string;
+  rank: number;
+  totalEarnings: number; // cents
+  golfers: {
+    tier: number;
+    dgId: number;
+    name: string;
+    position: string | null;
+    earnings: number; // cents
+    status: string;
+  }[];
+};
+
+export const insertEarningsPoolSchema = createInsertSchema(earningsPools).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  rankingsCache: true,
+  rankingsCacheUpdatedAt: true,
+}).extend({
+  slug: z.union([
+    z.string()
+      .max(100, "URL slug must be 100 characters or less")
+      .regex(/^[a-z0-9-]+$/, "URL slug can only contain lowercase letters, numbers, and hyphens"),
+    z.literal('').transform(() => undefined),
+    z.undefined()
+  ]),
+});
+
+export type InsertEarningsPool = z.infer<typeof insertEarningsPoolSchema>;
+export type EarningsPool = typeof earningsPools.$inferSelect;
+
+// Earnings Pool Golfers - the "Athlete Registry" with tier assignments
+export const earningsPoolGolfers = pgTable("earnings_pool_golfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => earningsPools.id, { onDelete: "cascade" }),
+  dgId: integer("dg_id").notNull(), // DataGolf player ID
+  name: text("name").notNull(),
+  country: text("country"),
+  tier: integer("tier").notNull(), // 1, 2, 3, or 4
+  dgRank: integer("dg_rank"),
+  owgrRank: integer("owgr_rank"),
+  currentPosition: text("current_position"), // Live tournament position
+  currentEarningsCents: integer("current_earnings_cents").notNull().default(0),
+  status: text("status").notNull().default("active"), // active, cut, wd, dq
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("earnings_pool_golfers_pool_idx").on(table.poolId),
+  uniqueIndex("earnings_pool_golfers_pool_dg_unique").on(table.poolId, table.dgId),
+  index("earnings_pool_golfers_tier_idx").on(table.poolId, table.tier),
+]);
+
+export const insertEarningsPoolGolferSchema = createInsertSchema(earningsPoolGolfers).omit({
+  id: true,
+  createdAt: true,
+  currentPosition: true,
+  currentEarningsCents: true,
+  status: true,
+});
+
+export type InsertEarningsPoolGolfer = z.infer<typeof insertEarningsPoolGolferSchema>;
+export type EarningsPoolGolfer = typeof earningsPoolGolfers.$inferSelect;
+
+// Earnings Pool Entries - the "Entry Ledger" with 4 picks (one per tier)
+export const earningsPoolEntries = pgTable("earnings_pool_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  poolId: varchar("pool_id").notNull().references(() => earningsPools.id, { onDelete: "cascade" }),
+  entryName: text("entry_name").notNull(),
+  email: text("email").notNull(),
+  tier1GolferId: varchar("tier1_golfer_id").notNull().references(() => earningsPoolGolfers.id),
+  tier2GolferId: varchar("tier2_golfer_id").notNull().references(() => earningsPoolGolfers.id),
+  tier3GolferId: varchar("tier3_golfer_id").notNull().references(() => earningsPoolGolfers.id),
+  tier4GolferId: varchar("tier4_golfer_id").notNull().references(() => earningsPoolGolfers.id),
+  totalEarningsCents: integer("total_earnings_cents").notNull().default(0),
+  currentRank: integer("current_rank"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("earnings_pool_entries_pool_idx").on(table.poolId),
+  index("earnings_pool_entries_email_idx").on(table.email),
+  index("earnings_pool_entries_rank_idx").on(table.poolId, table.currentRank),
+]);
+
+export const insertEarningsPoolEntrySchema = createInsertSchema(earningsPoolEntries).omit({
+  id: true,
+  createdAt: true,
+  totalEarningsCents: true,
+  currentRank: true,
+});
+
+export type InsertEarningsPoolEntry = z.infer<typeof insertEarningsPoolEntrySchema>;
+export type EarningsPoolEntry = typeof earningsPoolEntries.$inferSelect;

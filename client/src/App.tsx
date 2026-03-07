@@ -1,10 +1,9 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
-import { isUnauthorizedError } from "@/lib/authUtils";
 import { useEffect, useRef } from "react";
 import type { UserRole } from "@shared/schema";
 
@@ -23,20 +22,14 @@ import GolfPoolManager from "@/pages/golf/GolfPoolManager";
 import GolfSurvivorPicks from "@/pages/golf/GolfSurvivorPicks";
 import GolfPoolSignup from "@/pages/golf/GolfPoolSignup";
 import GolfPoolLeaderboard from "@/pages/golf/GolfPoolLeaderboard";
+import EarningsPoolSignup from "@/pages/golf/EarningsPoolSignup";
+import EarningsPoolScoreboard from "@/pages/golf/EarningsPoolScoreboard";
+import EarningsPoolAdmin from "@/pages/golf/EarningsPoolAdmin";
+import NewEarningsPool from "@/pages/golf/NewEarningsPool";
+import GolfMajorsHub from "@/pages/golf/GolfMajorsHub";
 import UserManagement from "@/pages/UserManagement";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
-
-function LoginRedirect() {
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const returnTo = params.get('returnTo');
-    const loginUrl = returnTo ? `/api/login?returnTo=${encodeURIComponent(returnTo)}` : '/api/login';
-    window.location.href = loginUrl;
-  }, []);
-  return <div className="flex items-center justify-center min-h-screen">
-    <p className="text-muted-foreground">Redirecting to login...</p>
-  </div>;
-}
 
 interface ProtectedRouteProps {
   component: React.ComponentType;
@@ -94,7 +87,7 @@ function Router() {
       <Route path="/" component={Hub} />
       <Route path="/join" component={Join} />
       <Route path="/golfsurvivor" component={GolfSurvivor} />
-      <Route path="/login" component={LoginRedirect} />
+      <Route path="/login" component={Login} />
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} />}
       </Route>
@@ -122,6 +115,15 @@ function Router() {
       <Route path="/golf/pool/:poolId/entry/:entryId" component={GolfSurvivorPicks} />
       <Route path="/golf/pool/:poolId/signup" component={GolfPoolSignup} />
       <Route path="/golf/pool/:poolId/leaderboard" component={GolfPoolLeaderboard} />
+      <Route path="/golf-majors" component={GolfMajorsHub} />
+      <Route path="/golf/earnings/:poolId/signup" component={EarningsPoolSignup} />
+      <Route path="/golf/earnings/:poolId/scoreboard" component={EarningsPoolScoreboard} />
+      <Route path="/admin/golf/earnings/new">
+        {() => <ProtectedRoute component={NewEarningsPool} />}
+      </Route>
+      <Route path="/admin/golf/earnings/:id">
+        {() => <ProtectedRoute component={EarningsPoolAdmin} />}
+      </Route>
       <Route path="/board/:id" component={PublicBoard} />
       <Route path="/pool/:operatorSlug/:contestSlug" component={PublicBoard} />
       <Route path="/my-contests" component={MyContests} />

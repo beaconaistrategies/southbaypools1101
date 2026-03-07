@@ -73,7 +73,10 @@ export default function TopNav({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   className="cursor-pointer text-destructive"
-                  onClick={() => window.location.href = '/api/logout'}
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    window.location.href = '/login';
+                  }}
                   data-testid="menu-item-logout"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
