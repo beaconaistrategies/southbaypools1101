@@ -6,8 +6,10 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: "DATABASE_URL not configured" });
   }
 
-  // Remove channel_binding parameter as it's not supported via HTTP
-  const dbUrl = process.env.DATABASE_URL.replace(/[&?]channel_binding=[^&]*/g, '');
+  // Neon HTTP proxy needs non-pooler endpoint and no channel_binding
+  const dbUrl = process.env.DATABASE_URL
+    .replace('-pooler.', '.')
+    .replace(/[&?]channel_binding=[^&]*/g, '');
   const sql = neon(dbUrl);
 
   try {
