@@ -1,94 +1,94 @@
 // Vercel serverless function entry point
-// Wraps the Express app for serverless execution
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
+// All imports are dynamic to catch module-level errors
 
-const app = express();
+let app: any = null;
+let initialized = false;
 
-declare module 'http' {
-  interface IncomingMessage {
-    rawBody: unknown
-  }
-}
+async function getApp() {
+  if (app) return app;
 
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-app.use(express.urlencoded({ extended: false }));
+  const express = (await import("express")).default;
+  app = express();
 
-// Request logging for API routes
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  app.use(express.json({
+    verify: (req: any, _res: any, buf: any) => {
+      req.rawBody = buf;
+    }
+  }));
+  app.use(express.urlencoded({ extended: false }));
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+  // Request logging for API routes
+  app.use((req: any, res: any, next: any) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+    const originalResJson = res.json;
+    res.json = function (bodyJson: any, ...args: any[]) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
+
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
+        console.log(logLine);
       }
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+    });
+
+    next();
+  });
+
+  // Cron endpoint for refreshing earnings pool scores
+  app.get("/api/cron/refresh-scores", async (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+      const { db } = await import("../server/db");
+      const { earningsPools } = await import("../shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const { refreshEarningsPool } = await import("../server/earningsEngine");
+
+      const livePools = await db.select().from(earningsPools)
+        .where(eq(earningsPools.status, "live"));
+
+      const results = [];
+      for (const pool of livePools) {
+        try {
+          await refreshEarningsPool(pool.id);
+          results.push({ poolId: pool.id, status: "refreshed" });
+        } catch (error: any) {
+          results.push({ poolId: pool.id, status: "error", message: error.message });
+        }
       }
-      console.log(logLine);
+
+      return res.json({ refreshed: results.length, results });
+    } catch (error: any) {
+      console.error("Cron refresh error:", error);
+      return res.status(500).json({ message: error.message });
     }
   });
 
-  next();
-});
-
-// Cron endpoint for refreshing earnings pool scores
-app.get("/api/cron/refresh-scores", async (req, res) => {
-  // Verify the request is from Vercel Cron
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  try {
-    const { db } = await import("../server/db");
-    const { earningsPools } = await import("../shared/schema");
-    const { eq } = await import("drizzle-orm");
-    const { refreshEarningsPool } = await import("../server/earningsEngine");
-
-    // Find all pools with status "live"
-    const livePools = await db.select().from(earningsPools)
-      .where(eq(earningsPools.status, "live"));
-
-    const results = [];
-    for (const pool of livePools) {
-      try {
-        await refreshEarningsPool(pool.id);
-        results.push({ poolId: pool.id, status: "refreshed" });
-      } catch (error: any) {
-        results.push({ poolId: pool.id, status: "error", message: error.message });
-      }
-    }
-
-    return res.json({ refreshed: results.length, results });
-  } catch (error: any) {
-    console.error("Cron refresh error:", error);
-    return res.status(500).json({ message: error.message });
-  }
-});
-
-let initialized = false;
+  return app;
+}
 
 async function ensureInitialized() {
   if (!initialized) {
-    await registerRoutes(app);
+    const currentApp = await getApp();
+    const { registerRoutes } = await import("../server/routes");
+    await registerRoutes(currentApp);
 
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    currentApp.use((err: any, _req: any, res: any, _next: any) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       res.status(status).json({ message });
@@ -102,13 +102,14 @@ async function ensureInitialized() {
 export default async function handler(req: any, res: any) {
   try {
     await ensureInitialized();
-    return app(req, res);
+    const currentApp = await getApp();
+    return currentApp(req, res);
   } catch (error: any) {
     console.error("Handler initialization error:", error);
     res.status(500).json({
       error: error.message,
       code: error.code,
-      stack: error.stack?.split("\n").slice(0, 5),
+      stack: error.stack?.split("\n").slice(0, 10),
     });
   }
 }
