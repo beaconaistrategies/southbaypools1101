@@ -6,7 +6,9 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: "DATABASE_URL not configured" });
   }
 
-  const sql = neon(process.env.DATABASE_URL);
+  // Remove channel_binding parameter as it's not supported via HTTP
+  const dbUrl = process.env.DATABASE_URL.replace(/[&?]channel_binding=[^&]*/g, '');
+  const sql = neon(dbUrl);
 
   try {
     // Find or create operator
