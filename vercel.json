@@ -17,5 +17,6 @@
       "path": "/api/cron/refresh-scores",
       "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "regions": ["iad1"]
 }
