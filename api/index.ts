@@ -100,6 +100,15 @@ async function ensureInitialized() {
 
 // Export for Vercel
 export default async function handler(req: any, res: any) {
-  await ensureInitialized();
-  return app(req, res);
+  try {
+    await ensureInitialized();
+    return app(req, res);
+  } catch (error: any) {
+    console.error("Handler initialization error:", error);
+    res.status(500).json({
+      error: error.message,
+      code: error.code,
+      stack: error.stack?.split("\n").slice(0, 5),
+    });
+  }
 }
