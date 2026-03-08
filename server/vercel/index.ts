@@ -1,7 +1,7 @@
 // Vercel serverless function entry point
 // Wraps the Express app for serverless execution
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
+import { registerRoutes } from "../routes";
 
 const app = express();
 
@@ -56,10 +56,10 @@ app.get("/api/cron/refresh-scores", async (req, res) => {
   }
 
   try {
-    const { db } = await import("../server/db");
-    const { earningsPools } = await import("../shared/schema");
+    const { db } = await import("../db");
+    const { earningsPools } = await import("@shared/schema");
     const { eq } = await import("drizzle-orm");
-    const { refreshEarningsPool } = await import("../server/earningsEngine");
+    const { refreshEarningsPool } = await import("../earningsEngine");
 
     // Find all pools with status "live"
     const livePools = await db.select().from(earningsPools)
