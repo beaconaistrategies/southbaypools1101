@@ -2958,7 +2958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== SEED ROUTE (development/testing only) ==========
 
-  app.get("/api/seed/football-squares", async (req, res) => {
+  app.post("/api/seed/football-squares", async (req, res) => {
     try {
       // Find or create the operator
       let operator = await storage.getOperatorBySlug("south-bay-pools");
