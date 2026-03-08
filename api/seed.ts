@@ -7,9 +7,19 @@ export default async function handler(req: any, res: any) {
   }
 
   // Neon HTTP proxy needs non-pooler endpoint and no channel_binding
-  const dbUrl = process.env.DATABASE_URL
+  const rawUrl = process.env.DATABASE_URL;
+  const dbUrl = rawUrl
     .replace('-pooler.', '.')
     .replace(/[&?]channel_binding=[^&]*/g, '');
+
+  // Log the hostname for debugging (not the full URL to avoid leaking creds)
+  try {
+    const parsed = new URL(dbUrl);
+    console.log('Connecting to host:', parsed.hostname);
+  } catch (e) {
+    console.log('Could not parse URL');
+  }
+
   const sql = neon(dbUrl);
 
   try {
@@ -120,6 +130,11 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error: any) {
     console.error('Seed error:', error);
-    return res.status(500).json({ error: 'Failed to seed contest', details: error.message });
+    console.error('Error cause:', error.cause);
+    return res.status(500).json({
+      error: 'Failed to seed contest',
+      details: error.message,
+      cause: error.cause?.message || error.cause?.code || String(error.cause),
+    });
   }
 }
