@@ -15,6 +15,139 @@ export default async function handler(req: any, res: any) {
     const client = await pool.connect();
 
     try {
+      // Create enums and tables if they don't exist
+      await client.query(`
+        DO $$ BEGIN
+          CREATE TYPE contest_status AS ENUM ('open', 'locked');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        DO $$ BEGIN
+          CREATE TYPE square_status AS ENUM ('available', 'taken', 'disabled');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        DO $$ BEGIN
+          CREATE TYPE operator_plan AS ENUM ('free', 'basic', 'pro');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        DO $$ BEGIN
+          CREATE TYPE operator_status AS ENUM ('active', 'suspended', 'trial');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+        DO $$ BEGIN
+          CREATE TYPE user_role AS ENUM ('super_admin', 'admin', 'manager', 'member', 'trial');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+
+        CREATE TABLE IF NOT EXISTS operators (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          name text NOT NULL,
+          slug varchar(100) UNIQUE NOT NULL,
+          plan operator_plan NOT NULL DEFAULT 'free',
+          status operator_status NOT NULL DEFAULT 'trial',
+          billing_customer_id varchar,
+          max_contests integer NOT NULL DEFAULT 3,
+          created_at timestamp NOT NULL DEFAULT now(),
+          updated_at timestamp NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+          sid varchar PRIMARY KEY,
+          sess jsonb NOT NULL,
+          expire timestamp NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON sessions (expire);
+
+        CREATE TABLE IF NOT EXISTS users (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          operator_id varchar REFERENCES operators(id) ON DELETE CASCADE,
+          email varchar UNIQUE,
+          password_hash varchar,
+          first_name varchar,
+          last_name varchar,
+          profile_image_url varchar,
+          role user_role NOT NULL DEFAULT 'member',
+          is_admin boolean NOT NULL DEFAULT false,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS participants (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          auth_id varchar UNIQUE,
+          email varchar UNIQUE NOT NULL,
+          first_name varchar,
+          last_name varchar,
+          profile_image_url varchar,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS folders (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          operator_id varchar REFERENCES operators(id) ON DELETE CASCADE,
+          name text NOT NULL,
+          created_at timestamp NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS contests (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          operator_id varchar REFERENCES operators(id) ON DELETE CASCADE,
+          name text NOT NULL,
+          slug varchar(100),
+          event_date timestamp NOT NULL,
+          top_team text NOT NULL,
+          left_team text NOT NULL,
+          notes text,
+          folder_id varchar REFERENCES folders(id) ON DELETE SET NULL,
+          top_axis_numbers jsonb NOT NULL,
+          left_axis_numbers jsonb NOT NULL,
+          layer_labels jsonb,
+          red_rows_count integer NOT NULL DEFAULT 2,
+          show_red_headers boolean NOT NULL DEFAULT false,
+          header_colors_enabled boolean NOT NULL DEFAULT true,
+          layer_colors jsonb,
+          layer_color_groups jsonb,
+          status contest_status NOT NULL DEFAULT 'open',
+          prizes jsonb DEFAULT '[]'::jsonb,
+          winners jsonb DEFAULT '[]'::jsonb,
+          q1_winner text,
+          q2_winner text,
+          q3_winner text,
+          q4_winner text,
+          webhook_url text,
+          created_at timestamp NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS squares (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          contest_id varchar NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+          index integer NOT NULL,
+          row integer NOT NULL,
+          col integer NOT NULL,
+          status square_status NOT NULL DEFAULT 'available',
+          entry_name text,
+          holder_name text,
+          holder_email text,
+          participant_id varchar REFERENCES participants(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS contest_managers (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          contest_id varchar NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+          operator_id varchar NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+          created_at timestamp NOT NULL DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS square_templates (
+          id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+          operator_id varchar REFERENCES operators(id) ON DELETE CASCADE,
+          name text NOT NULL,
+          squares jsonb NOT NULL DEFAULT '[]'::jsonb,
+          created_at timestamp NOT NULL DEFAULT now()
+        );
+      `);
+
       // Find or create operator
       let result = await client.query(
         `SELECT id FROM operators WHERE slug = 'south-bay-pools' LIMIT 1`
