@@ -2,7 +2,6 @@
 // Wraps the Express app for serverless execution
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "../server/routes";
-import { serveStatic } from "../server/vite";
 
 const app = express();
 
