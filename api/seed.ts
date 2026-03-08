@@ -1,42 +1,38 @@
-// Standalone seed endpoint - creates a test Football Squares contest
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from 'ws';
-import { operators, contests, squares, type Prize } from '@shared/schema';
-import { eq, and } from 'drizzle-orm';
-
-neonConfig.webSocketConstructor = ws;
+// Standalone seed endpoint using raw SQL - no schema imports needed
+import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
   if (!process.env.DATABASE_URL) {
     return res.status(500).json({ error: "DATABASE_URL not configured" });
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle({ client: pool });
+  const sql = neon(process.env.DATABASE_URL);
 
   try {
     // Find or create operator
-    let [operator] = await db.select().from(operators).where(eq(operators.slug, 'south-bay-pools'));
-    if (!operator) {
-      [operator] = await db.insert(operators).values({
-        name: 'South Bay Pools',
-        slug: 'south-bay-pools',
-        plan: 'free',
-        status: 'active',
-        maxContests: 10,
-      }).returning();
+    let rows = await sql`SELECT id FROM operators WHERE slug = 'south-bay-pools' LIMIT 1`;
+    let operatorId: string;
+
+    if (rows.length === 0) {
+      const created = await sql`
+        INSERT INTO operators (id, name, slug, plan, status, max_contests)
+        VALUES (gen_random_uuid(), 'South Bay Pools', 'south-bay-pools', 'free', 'active', 10)
+        RETURNING id
+      `;
+      operatorId = created[0].id;
+    } else {
+      operatorId = rows[0].id;
     }
 
     // Check if contest already exists
-    const [existing] = await db.select().from(contests)
-      .where(and(eq(contests.slug, 'super-bowl-lxi'), eq(contests.operatorId, operator.id)));
-    if (existing) {
-      await pool.end();
-      return res.json({ message: "Contest already exists", contestId: existing.id, slug: "super-bowl-lxi" });
+    const existing = await sql`
+      SELECT id FROM contests WHERE slug = 'super-bowl-lxi' AND operator_id = ${operatorId} LIMIT 1
+    `;
+    if (existing.length > 0) {
+      return res.json({ message: "Contest already exists", contestId: existing[0].id, slug: "super-bowl-lxi" });
     }
 
-    // Generate shuffled digits for axis numbers
+    // Generate shuffled digits
     function shuffledDigits(): number[] {
       const arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
       for (let i = arr.length - 1; i > 0; i--) {
@@ -46,35 +42,33 @@ export default async function handler(req: any, res: any) {
       return arr;
     }
 
-    const redRowsCount = 4;
-    const topAxisNumbers = Array.from({ length: redRowsCount }, () => shuffledDigits());
-    const leftAxisNumbers = Array.from({ length: redRowsCount }, () => shuffledDigits());
+    const topAxisNumbers = [shuffledDigits(), shuffledDigits(), shuffledDigits(), shuffledDigits()];
+    const leftAxisNumbers = [shuffledDigits(), shuffledDigits(), shuffledDigits(), shuffledDigits()];
 
-    const prizes: Prize[] = [
+    const prizes = [
       { label: 'Q1 Winner', amount: '$250', layerIndex: 0 },
       { label: 'Q2 Winner', amount: '$250', layerIndex: 1 },
       { label: 'Q3 Winner', amount: '$250', layerIndex: 2 },
       { label: 'Q4 / Final Winner', amount: '$750', layerIndex: 3 },
     ];
 
-    const [contest] = await db.insert(contests).values({
-      operatorId: operator.id,
-      name: 'Super Bowl LXI Squares',
-      slug: 'super-bowl-lxi',
-      eventDate: new Date('2027-02-14'),
-      topTeam: 'Chiefs',
-      leftTeam: '49ers',
-      notes: 'Test contest - $25 per square. Q1: $250, Q2: $250, Q3: $250, Q4: $750.',
-      topAxisNumbers,
-      leftAxisNumbers,
-      layerLabels: ['Q1', 'Q2', 'Q3', 'Q4'],
-      redRowsCount,
-      headerColorsEnabled: true,
-      layerColors: ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b'],
-      status: 'open',
-      prizes,
-      winners: [],
-    }).returning();
+    // Create the contest
+    const contestResult = await sql`
+      INSERT INTO contests (
+        id, operator_id, name, slug, event_date, top_team, left_team, notes,
+        top_axis_numbers, left_axis_numbers, layer_labels, red_rows_count,
+        header_colors_enabled, layer_colors, status, prizes, winners
+      ) VALUES (
+        gen_random_uuid(), ${operatorId}, 'Super Bowl LXI Squares', 'super-bowl-lxi',
+        '2027-02-14', 'Chiefs', '49ers',
+        'Test contest - $25 per square. Q1: $250, Q2: $250, Q3: $250, Q4: $750.',
+        ${JSON.stringify(topAxisNumbers)}::jsonb, ${JSON.stringify(leftAxisNumbers)}::jsonb,
+        '["Q1","Q2","Q3","Q4"]'::jsonb, 4,
+        true, '["#ef4444","#3b82f6","#22c55e","#f59e0b"]'::jsonb, 'open',
+        ${JSON.stringify(prizes)}::jsonb, '[]'::jsonb
+      ) RETURNING id
+    `;
+    const contestId = contestResult[0].id;
 
     // Create 100 squares
     const sampleNames = [
@@ -83,7 +77,9 @@ export default async function handler(req: any, res: any) {
       'Brandon L.', 'Katie F.', 'James D.', 'Megan C.', 'Steve A.',
     ];
 
-    const squaresToCreate = Array.from({ length: 100 }, (_, i) => {
+    let taken = 0, available = 0, disabled = 0;
+
+    for (let i = 0; i < 100; i++) {
       const index = i + 1;
       const row = Math.floor(i / 10);
       const col = i % 10;
@@ -91,39 +87,34 @@ export default async function handler(req: any, res: any) {
 
       if (rand < 0.35) {
         const name = sampleNames[Math.floor(Math.random() * sampleNames.length)];
-        return {
-          contestId: contest.id,
-          index,
-          row,
-          col,
-          status: 'taken' as const,
-          entryName: name,
-          holderName: name,
-          holderEmail: `${name.toLowerCase().replace(/[^a-z]/g, '')}@example.com`,
-        };
+        const email = `${name.toLowerCase().replace(/[^a-z]/g, '')}@example.com`;
+        await sql`
+          INSERT INTO squares (id, contest_id, index, row, col, status, entry_name, holder_name, holder_email)
+          VALUES (gen_random_uuid(), ${contestId}, ${index}, ${row}, ${col}, 'taken', ${name}, ${name}, ${email})
+        `;
+        taken++;
       } else if (rand > 0.95) {
-        return { contestId: contest.id, index, row, col, status: 'disabled' as const };
+        await sql`
+          INSERT INTO squares (id, contest_id, index, row, col, status)
+          VALUES (gen_random_uuid(), ${contestId}, ${index}, ${row}, ${col}, 'disabled')
+        `;
+        disabled++;
       } else {
-        return { contestId: contest.id, index, row, col, status: 'available' as const };
+        await sql`
+          INSERT INTO squares (id, contest_id, index, row, col, status)
+          VALUES (gen_random_uuid(), ${contestId}, ${index}, ${row}, ${col}, 'available')
+        `;
+        available++;
       }
-    });
-
-    await db.insert(squares).values(squaresToCreate);
-
-    const taken = squaresToCreate.filter(s => s.status === 'taken').length;
-    const available = squaresToCreate.filter(s => s.status === 'available').length;
-    const disabled = squaresToCreate.filter(s => s.status === 'disabled').length;
-
-    await pool.end();
+    }
 
     return res.status(201).json({
       message: 'Test Football Squares contest created',
-      contestId: contest.id,
+      contestId,
       slug: 'super-bowl-lxi',
       squares: { taken, available, disabled },
     });
   } catch (error: any) {
-    await pool.end();
     console.error('Seed error:', error);
     return res.status(500).json({ error: 'Failed to seed contest', details: error.message });
   }
