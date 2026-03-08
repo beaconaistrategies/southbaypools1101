@@ -2956,6 +2956,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========== SEED ROUTE (development/testing only) ==========
+
+  app.post("/api/seed/football-squares", async (req, res) => {
+    try {
+      // Find or create the operator
+      let operator = await storage.getOperatorBySlug("south-bay-pools");
+      if (!operator) {
+        operator = await storage.createOperator({
+          name: "South Bay Pools",
+          slug: "south-bay-pools",
+          plan: "free",
+          status: "active",
+          maxContests: 10,
+        });
+      }
+
+      // Check if contest already exists
+      const existing = await storage.getContestBySlug("super-bowl-lxi", operator.id);
+      if (existing) {
+        return res.json({ message: "Contest already exists", contestId: existing.id, slug: "super-bowl-lxi" });
+      }
+
+      // Generate random axis numbers (0-9 shuffled) for 4 layers
+      function shuffledDigits(): number[] {
+        const arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      const redRowsCount = 4;
+      const topAxisNumbers = Array.from({ length: redRowsCount }, () => shuffledDigits());
+      const leftAxisNumbers = Array.from({ length: redRowsCount }, () => shuffledDigits());
+
+      const contest = await storage.createContest({
+        operatorId: operator.id,
+        name: "Super Bowl LXI Squares",
+        slug: "super-bowl-lxi",
+        eventDate: new Date("2027-02-14"),
+        topTeam: "Chiefs",
+        leftTeam: "49ers",
+        notes: "Test contest - $25 per square. Q1: $250, Q2: $250, Q3: $250, Q4: $750.",
+        topAxisNumbers,
+        leftAxisNumbers,
+        layerLabels: ["Q1", "Q2", "Q3", "Q4"],
+        redRowsCount,
+        headerColorsEnabled: true,
+        layerColors: ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b"],
+        status: "open",
+        prizes: [
+          { label: "Q1 Winner", amount: "$250", layerIndex: 0 },
+          { label: "Q2 Winner", amount: "$250", layerIndex: 1 },
+          { label: "Q3 Winner", amount: "$250", layerIndex: 2 },
+          { label: "Q4 / Final Winner", amount: "$750", layerIndex: 3 },
+        ],
+        winners: [],
+      });
+
+      // Create 100 squares with a mix of statuses
+      const sampleNames = [
+        "Mike T.", "Sarah J.", "Dave R.", "Lisa M.", "Chris P.",
+        "Anna K.", "Tom B.", "Jenny W.", "Rick S.", "Nicole H.",
+        "Brandon L.", "Katie F.", "James D.", "Megan C.", "Steve A.",
+      ];
+
+      const squaresToCreate = Array.from({ length: 100 }, (_, i) => {
+        const index = i + 1;
+        const row = Math.floor(i / 10);
+        const col = i % 10;
+        const rand = Math.random();
+
+        if (rand < 0.35) {
+          const name = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+          return {
+            contestId: contest.id,
+            index,
+            row,
+            col,
+            status: "taken" as const,
+            entryName: name,
+            holderName: name,
+            holderEmail: `${name.toLowerCase().replace(/[^a-z]/g, "")}@example.com`,
+          };
+        } else if (rand > 0.95) {
+          return { contestId: contest.id, index, row, col, status: "disabled" as const };
+        } else {
+          return { contestId: contest.id, index, row, col, status: "available" as const };
+        }
+      });
+
+      await storage.createSquares(squaresToCreate);
+
+      const takenCount = squaresToCreate.filter(s => s.status === "taken").length;
+      const availableCount = squaresToCreate.filter(s => s.status === "available").length;
+      const disabledCount = squaresToCreate.filter(s => s.status === "disabled").length;
+
+      res.status(201).json({
+        message: "Test Football Squares contest created",
+        contestId: contest.id,
+        slug: "super-bowl-lxi",
+        squares: { taken: takenCount, available: availableCount, disabled: disabledCount },
+      });
+    } catch (error) {
+      console.error("Seed error:", error);
+      res.status(500).json({ error: "Failed to seed contest" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
