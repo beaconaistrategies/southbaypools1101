@@ -20,7 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { exportContestToCSV } from "@/lib/csvExport";
-import type { Contest, Square, Prize, Winner } from "@shared/schema";
+import type { Contest, Square, Prize, Winner, LinkedGame } from "@shared/schema";
+import AutoScorePanel from "@/components/AutoScorePanel";
 import {
   Dialog,
   DialogContent,
@@ -718,6 +719,8 @@ export default function ContestManager() {
               </div>
             </Card>
 
+            <AutoScorePanel contest={contest} />
+
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4">Webhook Integration</h3>
               
@@ -758,7 +761,7 @@ export default function ContestManager() {
     squareNumber: 1,
     topTeam: contest.topTeam,
     leftTeam: contest.leftTeam,
-    eventDate: contest.eventDate.toISOString()
+    eventDate: new Date(contest.eventDate).toISOString()
   }
 }, null, 2)}
                     </pre>

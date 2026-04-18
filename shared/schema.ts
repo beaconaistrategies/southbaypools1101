@@ -122,6 +122,23 @@ export type Winner = {
   squareNumber: number;
 };
 
+export type LinkedGame = {
+  espnGameId: string;
+  sport: "nfl" | "ncaa_bb";
+  homeTeam: string;
+  awayTeam: string;
+  homeAbbrev?: string;
+  awayAbbrev?: string;
+  gameDate: string;
+  layerIndex: number;         // Which axis numbers to use (0 for shared grid)
+  gameNumber: number;         // Display label: GM1, GM2, etc.
+  topTeamIsHome: boolean;     // NFL: maps ESPN home/away to top/left axes
+  status: "scheduled" | "in_progress" | "final";
+  lastScores?: { home: number[]; away: number[] };
+  periodsProcessed: number;   // NFL: 0-4 for quarters; NCAA BB: 0 or 1 (final only)
+  finalScore?: { winner: number; loser: number }; // NCAA BB: cached final scores
+};
+
 export const folders = pgTable("folders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   operatorId: varchar("operator_id").references(() => operators.id, { onDelete: "cascade" }),
@@ -165,6 +182,8 @@ export const contests = pgTable("contests", {
   q3Winner: text("q3_winner"),
   q4Winner: text("q4_winner"),
   webhookUrl: text("webhook_url"),
+  linkedGames: jsonb("linked_games").$type<LinkedGame[]>().default(sql`'[]'::jsonb`),
+  autoScoreEnabled: boolean("auto_score_enabled").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   uniqueIndex("contests_operator_slug_unique").on(table.operatorId, table.slug),
@@ -198,6 +217,8 @@ const baseContestSchema = createInsertSchema(contests).omit({
   layerColors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).optional(),
   layerColorGroups: z.array(z.number().min(0)).optional(),
   status: z.enum(["open", "locked"]).optional(),
+  linkedGames: z.array(z.any()).optional(),
+  autoScoreEnabled: z.boolean().optional(),
 });
 
 export const insertContestSchema = baseContestSchema.refine(

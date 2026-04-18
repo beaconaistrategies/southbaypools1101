@@ -7,6 +7,9 @@ import { sendWebhookNotification, sendGolfPickWebhookNotification, sendGolfSignu
 import { setupAuth, isAuthenticated, isAdmin } from "./replitAuth";
 import { dataGolfService } from "./datagolf";
 import { getCurrentWeekFromSchedule, hasDeadlinePassed, getDeadlineForWeek, getTournamentForWeek } from "./schedule";
+import { sportsApiService, type SportType } from "./sportsApi";
+import { processAutoScoreContests } from "./autoScore";
+import type { LinkedGame } from "@shared/schema";
 
 // Helper to get operatorId from authenticated request
 async function getOperatorId(req: Request): Promise<string | null> {
@@ -817,8 +820,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // AUTO-SCORE ROUTES
+  // ==========================================
+
+  // Search ESPN games for a given sport and date
+  app.get("/api/sports/games", isAdmin, async (req, res) => {
+    try {
+      const sport = req.query.sport as SportType;
+      const date = req.query.date as string; // YYYYMMDD format
+
+      if (!sport || !["nfl", "ncaa_bb"].includes(sport)) {
+        return res.status(400).json({ error: "sport must be 'nfl' or 'ncaa_bb'" });
+      }
+      if (!date || !/^\d{8}$/.test(date)) {
+        return res.status(400).json({ error: "date must be in YYYYMMDD format" });
+      }
+
+      const games = await sportsApiService.searchGames(sport, date);
+      res.json(games);
+    } catch (error) {
+      console.error("Error searching games:", error);
+      res.status(500).json({ error: "Failed to search games" });
+    }
+  });
+
+  // Link an ESPN game to a contest layer
+  app.post("/api/contests/:id/link-game", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { espnGameId, sport, layerIndex, topTeamIsHome, gameNumber } = req.body;
+
+      if (!espnGameId || !sport || layerIndex === undefined) {
+        return res.status(400).json({ error: "espnGameId, sport, and layerIndex are required" });
+      }
+
+      // Verify the game exists on ESPN
+      const game = await sportsApiService.getGameScores(espnGameId, sport as SportType);
+      if (!game) {
+        return res.status(404).json({ error: "Game not found on ESPN" });
+      }
+
+      const contest = await storage.getContest(id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      const linkedGames: LinkedGame[] = (contest.linkedGames as LinkedGame[]) || [];
+
+      // For NCAA BB, multiple games can share the same layer (grid).
+      // For NFL, one game per layer. Remove existing link for this gameNumber or layer.
+      const filtered = sport === "ncaa_bb"
+        ? linkedGames.filter((g) => !(g.espnGameId === espnGameId && g.layerIndex === layerIndex))
+        : linkedGames.filter((g) => g.layerIndex !== layerIndex);
+
+      // Auto-assign gameNumber if not provided
+      const assignedGameNumber = gameNumber
+        ?? (filtered.length > 0 ? Math.max(...filtered.map((g) => g.gameNumber || 0)) + 1 : 1);
+
+      const newLinkedGame: LinkedGame = {
+        espnGameId,
+        sport: sport as SportType,
+        homeTeam: game.homeTeam.name,
+        awayTeam: game.awayTeam.name,
+        homeAbbrev: game.homeTeam.abbreviation,
+        awayAbbrev: game.awayTeam.abbreviation,
+        gameDate: game.startTime || new Date().toISOString(),
+        layerIndex,
+        gameNumber: assignedGameNumber,
+        topTeamIsHome: topTeamIsHome ?? true,
+        status: game.status,
+        periodsProcessed: 0,
+      };
+
+      filtered.push(newLinkedGame);
+
+      const updated = await storage.updateContest(id, {
+        linkedGames: filtered,
+        autoScoreEnabled: true,
+      } as any);
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error linking game:", error);
+      res.status(500).json({ error: "Failed to link game" });
+    }
+  });
+
+  // Unlink a game from a contest (by gameNumber)
+  app.delete("/api/contests/:id/link-game/:gameNumber", isAdmin, async (req, res) => {
+    try {
+      const { id, gameNumber } = req.params;
+      const contest = await storage.getContest(id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      const linkedGames: LinkedGame[] = (contest.linkedGames as LinkedGame[]) || [];
+      const filtered = linkedGames.filter((g) => g.gameNumber !== parseInt(gameNumber));
+
+      const updated = await storage.updateContest(id, {
+        linkedGames: filtered,
+        autoScoreEnabled: filtered.length > 0,
+      } as any);
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error unlinking game:", error);
+      res.status(500).json({ error: "Failed to unlink game" });
+    }
+  });
+
+  // Enable/disable auto-score for a contest
+  app.post("/api/contests/:id/auto-score/:action", isAdmin, async (req, res) => {
+    try {
+      const { id, action } = req.params;
+      if (!["enable", "disable"].includes(action)) {
+        return res.status(400).json({ error: "action must be 'enable' or 'disable'" });
+      }
+
+      const updated = await storage.updateContest(id, {
+        autoScoreEnabled: action === "enable",
+      } as any);
+
+      if (!updated) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error toggling auto-score:", error);
+      res.status(500).json({ error: "Failed to toggle auto-score" });
+    }
+  });
+
+  // Get live scores for a contest's linked games
+  app.get("/api/contests/:id/live-scores", isAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const contest = await storage.getContest(id);
+      if (!contest) {
+        return res.status(404).json({ error: "Contest not found" });
+      }
+
+      const linkedGames: LinkedGame[] = (contest.linkedGames as LinkedGame[]) || [];
+      const scores = await Promise.all(
+        linkedGames.map(async (lg) => {
+          const game = await sportsApiService.getGameScores(lg.espnGameId, lg.sport);
+          return { linkedGame: lg, liveScores: game };
+        }),
+      );
+
+      res.json(scores);
+    } catch (error) {
+      console.error("Error fetching live scores:", error);
+      res.status(500).json({ error: "Failed to fetch live scores" });
+    }
+  });
+
+  // Cron endpoint for auto-score processing (secured by CRON_SECRET)
+  app.post("/api/cron/auto-score", async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = req.headers.authorization;
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const result = await processAutoScoreContests();
+      res.json(result);
+    } catch (error) {
+      console.error("Error in auto-score cron:", error);
+      res.status(500).json({ error: "Auto-score processing failed" });
+    }
+  });
+
   // Folder routes
-  
+
   // Get all folders (operator-scoped)
   app.get("/api/folders", isAdmin, async (req, res) => {
     try {

@@ -225,9 +225,9 @@ export default function SquareGrid({
           {square.index}
         </span>
         {isWinner && (
-          <Badge 
-            variant="default" 
-            className="absolute top-1 right-1 text-xs"
+          <Badge
+            variant="default"
+            className={`absolute top-1 right-1 ${winnerInfo.displayLabel.length > 4 ? "text-[8px] px-1 py-0" : "text-xs"}`}
             style={getLayerBadgeStyle(winnerInfo.colorIndex)}
           >
             {winnerInfo.displayLabel}

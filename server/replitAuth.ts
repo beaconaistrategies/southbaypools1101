@@ -38,7 +38,7 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: !!process.env.REPL_ID,
       maxAge: SESSION_TTL_DEFAULT,
     },
   });
@@ -122,6 +122,38 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Skip Replit OIDC setup when not running on Replit
+  if (!process.env.REPL_ID) {
+    console.log("REPL_ID not set — Replit auth disabled (local development mode)");
+
+    // Dev mode: set up passport serialization
+    passport.serializeUser((user: Express.User, cb) => cb(null, user));
+    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+
+    // Dev login: auto-sign in as the primary admin user
+    app.get("/api/login", async (req, res) => {
+      const devUser = await storage.getUser("36808512");
+      if (!devUser) {
+        return res.status(500).json({ error: "Dev user not found in database" });
+      }
+      const sessionUser = {
+        claims: { sub: devUser.id, email: devUser.email, first_name: devUser.firstName, last_name: devUser.lastName },
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      };
+      req.login(sessionUser, (err) => {
+        if (err) return res.status(500).json({ error: "Login failed" });
+        const returnTo = (req.query.returnTo as string) || "/admin";
+        res.redirect(returnTo);
+      });
+    });
+
+    app.get("/api/logout", (req, res) => {
+      req.logout(() => res.redirect("/"));
+    });
+
+    return;
+  }
 
   const config = await getOidcConfig();
 
