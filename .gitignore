@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Claude Code local
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Claude Code local harness
+.claude/
+CLAUDE.md
